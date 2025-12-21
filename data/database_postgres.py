@@ -20,7 +20,7 @@ def connect_db():
     )
     cur = conn.cursor()
     return conn, cur
-def close_db(conn, cur):
+def close_db(conn):
     cur.close()
     conn.close()
     if debug: print("Database connection closed.")

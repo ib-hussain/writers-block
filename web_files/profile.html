@@ -8,15 +8,46 @@
     <link rel="stylesheet" href="css/profile.css" />
   </head>
   <body>
-    <script src="navbar.js"></script>
+    <script src="js/navbar.js"></script>
 
-    <div class="container">
-      <div class="logo">
-        <h1>Your Profile History</h1>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden" aria-hidden="true">
+      <div class="loading-card">
+        <img class="loading-gif" src="pictures/loading.gif" alt="Loading" onerror="this.style.display='none'; document.getElementById('loadingSpinner').classList.remove('hidden');" />
+        <div id="loadingSpinner" class="spinner hidden"></div>
+        <p class="loading-text">Loading history…</p>
       </div>
-
     </div>
 
-    <script src="profile.js"></script>
+    <main class="container">
+      <header class="head">
+        <h1>Your Profile History</h1>
+        <p class="subtitle">Pick a date to load the full history (CSV format).</p>
+      </header>
+
+      <section class="controls">
+        <div class="control-group">
+          <label for="historyDate">Select Date</label>
+          <input id="historyDate" type="date" />
+        </div>
+
+        <div class="control-actions">
+          <button id="loadBtn" class="btn btn-primary">Load</button>
+          <button id="downloadBtn" class="btn btn-secondary" disabled>Download CSV</button>
+        </div>
+      </section>
+
+      <section class="csv-section">
+        <div class="section-head">
+          <h3>profileHistory (CSV)</h3>
+          <span id="rowCount" class="pill">0 rows</span>
+        </div>
+
+        <textarea id="csvBox" class="csv-box" placeholder="Select a date and click Load…"></textarea>
+        <div id="errorBox" class="error hidden"></div>
+      </section>
+    </main>
+
+    <script src="js/profile.js"></script>
   </body>
 </html>

@@ -5,6 +5,7 @@
 *.toml
 *.zip
 *dg.css
+*.env
 ignore/
 # Ignore temp files
 *temp_audio1.wav

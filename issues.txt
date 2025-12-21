@@ -1,3 +1,0 @@
-issues:
-1. handle chat history problems 
-2. enter a field in data base for remembering chats in different rows by dates

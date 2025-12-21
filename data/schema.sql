@@ -106,8 +106,8 @@ CREATE TABLE IF NOT EXISTS profileHistory (
     id SERIAL PRIMARY KEY,
     entry_date DATE NOT NULL DEFAULT (CURRENT_DATE),
     entry TIMESTAMPTZ NOT NULL,
-    Userprompt TEXT DEFAULT NULL,
-    chatResponse TEXT DEFAULT NULL,
+    userprompt TEXT DEFAULT NULL,
+    chatresponse TEXT DEFAULT NULL,
     FOREIGN KEY (entry_date) REFERENCES progress(entry_date) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE OR REPLACE FUNCTION insert_profile_history(
