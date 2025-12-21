@@ -21,19 +21,16 @@ def create_classification_chain():
     classification_prompt = PromptTemplate(
         input_variables=["user_prompt"],
         template="""
-        You are an intelligent agent classifier that determines which specialized agent should handle a user's request.
-        Available Agents and Their Capabilities:
-        1. DIET AGENT
-        2. EXERCISE AGENT
-        3. MENTAL HEALTH AGENT
+        You are an intelligent agent classifier that determines which step of the blog writing process should handle a user's request.
+        Available Steps and Their Capabilities:
+        1. INTRODUCTION
+        2. FINAL CTA
+        3. FAQs
+        4. BUSINESS DESCRIPTION
+        5. SHORT CTA
         User Prompt: "{user_prompt}"
-        Analyze the user prompt carefully and determine which agent is most appropriate to handle this request.
-        Classification Rules:
-        1. If the prompt mentions food, meals, nutrition, calories, diet, eating, recipes, ingredients, or asks about food photos → diet
-        2. If the prompt mentions workouts, exercise, fitness, training, physical activity, muscle building, weight lifting, cardio → exercise  
-        3. If the prompt mentions emotions, feelings, mental health, stress, anxiety, mood, motivation, journaling, emotional support → mental
-        Respond with ONLY ONE WORD: diet, exercise, or mental
-        Classification:"""
+        Analyze the user prompt carefully and determine which step is most appropriate to handle this request.
+        """
     )
     # Create chain the traditional way
     return classification_prompt, llm

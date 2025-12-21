@@ -1,13 +1,9 @@
-﻿Instructions for AI agent: Writing
-The starting prompt for the overall blog
-
-
-We are writing a clear, SEO-optimised article titled “[TITLE]”. This article must directly answer each header in the very first sentence of each relevant section. Then, it should go into specific, well-researched, and helpful details.
-
+﻿Instructions for AI agent: 
+Prompt for the overall blog writing
+We are writing a clear, SEO-optimised article titled “{TITLE}”. This article must directly answer each header in the very first sentence of each relevant section. Then, it should go into specific, well-researched, and helpful details.
 
 You MUST use all of the following keywords naturally throughout the article:
-“[KEYWORDS]”
-
+“{KEYWORDS}”
 
 * Use these keywords even when paraphrasing.
 * Do not skip any keyword throughout the entire article.
@@ -18,26 +14,24 @@ You MUST use all of the following keywords naturally throughout the article:
 * Each paragraph must begin with a direct, clear answer.
 * The tone should be informative, direct, and easy to follow.
 
-
 I will provide the headers (outline sections) one by one. You will expand them with strong content, following these rules for the entire article.
 
 
 Prompt for intro
-Write intro answering the question: [insert question]. Provide two paragraphs, each 60 words. The first paragraph must give a direct and relevant answer to the question, using short, active sentences, smooth transitions, and easy-to-follow language. The second paragraph must be a strong call to action, connected naturally to the topic. Write in the second person. Keep every sentence under 15 words for readability. Use a Flesch Reading Score–friendly style.
-This should be the format: [insert intro example from the previous blog]
+Write intro answering the question: {INSERT_INTRO_QUESTION}. Provide two paragraphs, each 60 words. The first paragraph must give a direct and relevant answer to the question, using short, active sentences, smooth transitions, and easy-to-follow language. The second paragraph must be a strong call to action, connected naturally to the topic. Write in the second person. Keep every sentence under 15 words for readability. Use a Flesch Reading Score–friendly style.
+This should be the format: {INSERT_INTRO_EXAMPLE_FROM_THE_PREVIOUS_BLOG}
 
 
 Prompt for final CTA
 Write a two-paragraph call to action. Each paragraph must have 70 words. The first paragraph should explain the problems the reader faces based on the topic. The second paragraph should explain how we can help resolve those problems. In the second paragraph, you must use the name, phone number, and location given in the reference. Write in the second person, keep every sentence under 15 words, and use transition words for smooth flow. Keep the tone clear, active, and easy to follow for a high Flesch Reading Score.
-This should be the format: [insert CTA example from the previous blog
+This should be the format: {INSERT_CTA_EXAMPLE}
 
 
 Prompt for FAQs
 Answer the following  FAQs clearly and directly, using the following formatting and content rules:
-"insert questions"
+{INSERT_FAQ_QUESTIONS}
 Each question should be formatted as an H4 with bold text and Title Case.
-Seamlessly integrate the following keywords wherever relevant and natural: insert keywords
-
+Seamlessly integrate the following keywords wherever relevant and natural: {KEYWORDS}
 
 * Answer length should be between 60 to 70 words.
 * Begin with a direct answer (e.g., “Yes,” or “No,” if applicable), followed by a clear explanation.
@@ -54,8 +48,8 @@ Seamlessly integrate the following keywords wherever relevant and natural: inser
 
 
 Prompt for business description
-Write a business description based on the title: [insert title]. Start with a direct 70-word opening paragraph that answers the question clearly. Then, include six bullet points in the middle, each 15 words long, highlighting symptoms, risks, steps, legal options or key details connected to the topic. After the bullets, write a closing 70-word paragraph explaining how we can help. Use second person, active voice, and short sentences under 15 words. Add smooth transitions for flow and ensure a high Flesch Reading Score.
-This should be the format:
+Write a business description based on the title: {TITLE}. Start with a direct 70-word opening paragraph that answers the question clearly. Then, include six bullet points in the middle, each 15 words long, highlighting symptoms, risks, steps, legal options or key details connected to the topic. After the bullets, write a closing 70-word paragraph explaining how we can help. Use second person, active voice, and short sentences under 15 words. Add smooth transitions for flow and ensure a high Flesch Reading Score.
+This is an example:
 “How Do You Know If You Have L5-S1 Nerve Damage?
 L5-S1 nerve damage can cause sharp pain in your lower back that shoots down your leg. You may also feel numbness, tingling, or muscle weakness. As time goes on, these symptoms can get worse, making it harder to walk or perform everyday tasks. Understanding these signs early can help you take the right steps to prevent further damage.
 Common Symptoms of L5-S1 Nerve Damage:
@@ -68,7 +62,7 @@ At Total Orthopedics & Sports Medicine, we specialize in diagnosing and treating
 
 
 Prompt for Integrating References
-When integrating references, only use credible, trustworthy sources such as government sites, universities, medical journals, legal journals, or recognized organizations. Do not use competitors or promotional sources. Introduce the reference naturally with phrases like ‘According to [source]’ or ‘A study by [source] found…’. Keep sentences short, active, and easy to follow. Use references to support key points, not overwhelm the reader. Include at least 3–4 references throughout the blog, but use more if needed for accuracy. At the end, provide the full source in a consistent format.
+When integrating references, only use credible, trustworthy sources such as government sites, universities, medical journals, legal journals, or recognized organizations. Do not use competitors or promotional sources. Introduce the reference naturally with phrases like ‘According to {source}’ or ‘A study by {source} found…’. Keep sentences short, active, and easy to follow. Use references to support key points, not overwhelm the reader. Include at least 3–4 references throughout the blog, but use more if needed for accuracy. At the end, provide the full source in a consistent format.
 
 
 Prompt for Short CTAs in the blog

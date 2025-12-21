@@ -1,4 +1,4 @@
-Here is the final, clean, comma-separated keyword list, fully refined per your rules (≤3 words each, common across blogs + critical exceptions only):
+Here is the final, clean, comma-separated keyword list, fully refined per your rules:
 
 lawyer, attorney, consultation, 
 claim, accident, case, insurance, 
@@ -8,10 +8,5 @@ damages, liability, settlement, legal process,
 statute limitations, comparative negligence, 
 policy limits, contingency fee, trial, litigation, 
 negotiation, expert witnesses, accident reconstruction,
-PIP, MedPay, UM coverage, UIM coverage, collision coverage, 
-rear-end collision, T-bone accident, Uber accident,
-Lyft accident, rideshare accident, whiplash, 
-concussion, anxiety, traffic footage,
-dashcam footage, surveillance footage, medical bills, 
-lost wages, total loss, 
-ACV, salvage title, gap insurance
+dashcam footage, surveillance footage, 
+medical bills, total loss, gap, insurance

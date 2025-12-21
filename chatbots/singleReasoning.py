@@ -68,7 +68,6 @@ AGENT_KEYWORDS: Dict[str, Dict[str, List[str]]] = {
         ],
     },
 }
-
 # If there is a tie, this decides which agent wins.
 # Put the most "specific" intents earlier.
 TIE_BREAK_PRIORITY: List[str] = [
@@ -79,8 +78,6 @@ TIE_BREAK_PRIORITY: List[str] = [
     "short_cta",
     "writing",
 ]
-
-
 def _score_prompt(prompt_lower: str, phrases: List[str], words: List[str]) -> int:
     """
     Simple scoring:
@@ -88,21 +85,16 @@ def _score_prompt(prompt_lower: str, phrases: List[str], words: List[str]) -> in
     - Word match: +1 each
     """
     score = 0
-
     # Phrase matches
     for p in phrases:
         if p in prompt_lower:
             score += 3
-
     # Word matches (guard a bit against empty / very short words)
     for w in words:
         if w and w in prompt_lower:
             score += 1
-
     return score
-
-
-def fallback_classifier(user_prompt: str) -> str:
+def SingleClassifier(user_prompt: str) -> str:
     """
     Keyword-based fallback classifier for new agent types:
     intro, final_cta, FAQs, business_description, short_cta, writing (default).
