@@ -1,0 +1,75 @@
+﻿Instructions for AI agent: Writing
+The starting prompt for the overall blog
+
+
+We are writing a clear, SEO-optimised article titled “[TITLE]”. This article must directly answer each header in the very first sentence of each relevant section. Then, it should go into specific, well-researched, and helpful details.
+
+
+You MUST use all of the following keywords naturally throughout the article:
+“[KEYWORDS]”
+
+
+* Use these keywords even when paraphrasing.
+* Do not skip any keyword throughout the entire article.
+* Use an active voice, and avoid passive voice unless absolutely necessary.
+* Always keep sentences short or split them when needed.
+* Use strong transitions.
+* Support points with real-world facts, examples, or data.
+* Each paragraph must begin with a direct, clear answer.
+* The tone should be informative, direct, and easy to follow.
+
+
+I will provide the headers (outline sections) one by one. You will expand them with strong content, following these rules for the entire article.
+
+
+Prompt for intro
+Write intro answering the question: [insert question]. Provide two paragraphs, each 60 words. The first paragraph must give a direct and relevant answer to the question, using short, active sentences, smooth transitions, and easy-to-follow language. The second paragraph must be a strong call to action, connected naturally to the topic. Write in the second person. Keep every sentence under 15 words for readability. Use a Flesch Reading Score–friendly style.
+This should be the format: [insert intro example from the previous blog]
+
+
+Prompt for final CTA
+Write a two-paragraph call to action. Each paragraph must have 70 words. The first paragraph should explain the problems the reader faces based on the topic. The second paragraph should explain how we can help resolve those problems. In the second paragraph, you must use the name, phone number, and location given in the reference. Write in the second person, keep every sentence under 15 words, and use transition words for smooth flow. Keep the tone clear, active, and easy to follow for a high Flesch Reading Score.
+This should be the format: [insert CTA example from the previous blog
+
+
+Prompt for FAQs
+Answer the following  FAQs clearly and directly, using the following formatting and content rules:
+"insert questions"
+Each question should be formatted as an H4 with bold text and Title Case.
+Seamlessly integrate the following keywords wherever relevant and natural: insert keywords
+
+
+* Answer length should be between 60 to 70 words.
+* Begin with a direct answer (e.g., “Yes,” or “No,” if applicable), followed by a clear explanation.
+* Use an active voice throughout.
+* Use strong transitions between ideas and connect sentences smoothly.
+* If a sentence becomes long, break it using a short, clear transition or supporting sentence.
+* Do not include fluff or filler. Every sentence must add value and connect logically.
+* Make the tone informative and easy to follow without oversimplifying medical or legal terms.
+* Avoid sudden info dumps; flow should be natural and progressive.
+* Make sure no sentence or idea feels out of place or rushed.
+* Use real medical and legal insight where needed, and avoid vague or generic statements.
+* Do not overuse any keyword or repeat the same idea unnecessarily.
+* All the sentences should only answer the question, no other irrelevant info.
+
+
+Prompt for business description
+Write a business description based on the title: [insert title]. Start with a direct 70-word opening paragraph that answers the question clearly. Then, include six bullet points in the middle, each 15 words long, highlighting symptoms, risks, steps, legal options or key details connected to the topic. After the bullets, write a closing 70-word paragraph explaining how we can help. Use second person, active voice, and short sentences under 15 words. Add smooth transitions for flow and ensure a high Flesch Reading Score.
+This should be the format:
+“How Do You Know If You Have L5-S1 Nerve Damage?
+L5-S1 nerve damage can cause sharp pain in your lower back that shoots down your leg. You may also feel numbness, tingling, or muscle weakness. As time goes on, these symptoms can get worse, making it harder to walk or perform everyday tasks. Understanding these signs early can help you take the right steps to prevent further damage.
+Common Symptoms of L5-S1 Nerve Damage:
+* Pain radiating from the lower back down to the leg, foot, or toes, often sharp and intense.
+* Weakness in the muscles that control foot movement, leading to foot drop and difficulty lifting the foot.
+* Difficulty with balance and walking due to nerve compression affecting the lower limbs and spinal alignment.
+*  Loss of reflexes or coordination in the lower leg or foot, making it challenging to walk or stand.
+* Bladder or bowel control issues in severe cases indicate a more serious level of nerve damage.
+At Total Orthopedics & Sports Medicine, we specialize in diagnosing and treating nerve damage. Our experts use advanced imaging to pinpoint the cause of your symptoms and develop a personalized treatment plan. Whether it’s through physical therapy, non-surgical treatments, or surgery, we’re committed to helping you find relief. Take action now to restore your quality of life and manage your symptoms effectively."
+
+
+Prompt for Integrating References
+When integrating references, only use credible, trustworthy sources such as government sites, universities, medical journals, legal journals, or recognized organizations. Do not use competitors or promotional sources. Introduce the reference naturally with phrases like ‘According to [source]’ or ‘A study by [source] found…’. Keep sentences short, active, and easy to follow. Use references to support key points, not overwhelm the reader. Include at least 3–4 references throughout the blog, but use more if needed for accuracy. At the end, provide the full source in a consistent format.
+
+
+Prompt for Short CTAs in the blog
+Write a short 2–3 line call to action that directly connects to the problems discussed in the section. Emphasize how our doctors or lawyers can help the reader manage those challenges. Keep sentences short, active, and easy to follow. Avoid using our name, phone number, or location. Only use phrases like contact us or reach out to us naturally within the text.
