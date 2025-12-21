@@ -1,1 +1,0 @@
-# file to be filled with data for mental health RAG chatbot also this chatbot is the default ai chatbot
