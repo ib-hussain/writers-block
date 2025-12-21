@@ -41,7 +41,7 @@ def profile_page():
 # issue: make this function and put it in the backend file of database_postgres.py 
 pool = SimpleConnectionPool(
         minconn=1,
-        maxconn=5,
+        maxconn=10,
         dsn=os.getenv("DATABASE_URL"),
         sslmode="require"
     )
@@ -152,7 +152,7 @@ def api_tokens_month():
 def api_profile_history_by_date():
     d = request.args.get("date", "").strip()
     if not d:
-        abort(400, description="Missing date parameter (YYYY-MM-DD).")
+        abort(407, description="Missing date parameter (YYYY-MM-DD).")
 
     # Robust parse: accepts YYYY-MM-DD only
     try:
