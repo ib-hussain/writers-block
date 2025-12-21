@@ -102,3 +102,37 @@ END;
 $$;
 -- Mark "intro" as completed today
 -- SELECT mark_progress_column('intro');
+CREATE TABLE IF NOT EXISTS profileHistory (
+    id SERIAL PRIMARY KEY,
+    entry_date DATE NOT NULL DEFAULT (CURRENT_DATE),
+    entry TIMESTAMPTZ NOT NULL,
+    Userprompt TEXT DEFAULT NULL,
+    chatResponse TEXT DEFAULT NULL,
+    FOREIGN KEY (entry_date) REFERENCES progress(entry_date) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE OR REPLACE FUNCTION insert_profile_history(
+    p_userprompt TEXT,
+    p_chatresponse TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO profileHistory (
+        entry_date,
+        entry,
+        Userprompt,
+        chatResponse
+    )
+    VALUES (
+        CURRENT_DATE,
+        NOW(),
+        p_userprompt,
+        p_chatresponse
+    );
+END;
+$$;
+-- SELECT insert_profile_history(
+--     'Write an intro for a fitness app',
+--     'Here is a concise and engaging introduction for your app...'
+-- );

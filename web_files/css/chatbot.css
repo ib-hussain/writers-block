@@ -1,16 +1,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600&family=Anaheim&display=swap');
-
+*{
+  --backgroundColour: radial-gradient(circle at 20% 20%,
+    rgba(255,212,196,1) 0%,
+    rgba(255,237,188,1) 30%,
+    rgba(236,217,255,1) 55%,
+    rgba(202,224,255,1) 80%);
+  --containerBackground: rgba(200,230,255,0.85);
+  --BoxShadow:rgba(0,0,0,0.25);
+  --textColour:#171a1f;
+  --purplish:#2e1b41;
+  --lightPurple:#9c91a7;
+  --lightRed:#e74c3c;
+  --darkRed:#c0392b;
+  --GreenColor: #09855b;
+  --Pink: #f2e0e7;
+  --DarkBlue: #5c8bc0;
+  --LightBlue: #e0edfc;
+  --boxBackground: #afe4f163;
+  --ratingYellow: #ff9100;
+  --statCardBG: #7f6d8d0a;
+  --statCardBorder: #dfdcbc;
+}
 body {
     margin: 0;
     font-family: 'Manrope', sans-serif;
-    color: #171a1f;
-    background: radial-gradient(
-        circle at 20% 20%,
-        rgba(255, 212, 196, 1) 0%, 
-        rgba(255, 237, 188, 1) 30%, 
-        rgba(236, 217, 255, 1) 55%, 
-        rgba(202, 224, 255, 1) 80%
-    );
+    color: var(--textColour);
+    background: var(--backgroundColour);
     background-blend-mode: screen; 
     background-size: cover;
     background-attachment: fixed;
@@ -18,10 +33,10 @@ body {
 }
 
 .chat-container {
-    background-color: rgba(200, 230, 255, 0.616);
+    background-color: var(--containerBackground);
     border-radius: 30px;
     width: 80%;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.158);
+    box-shadow: 0 10px 28px var(--BoxShadow);
     display: flex;
     flex-direction: column;
     margin: 80px auto 80px;
@@ -48,8 +63,8 @@ body {
     padding: 20px 15px;
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
-    border-top: 1px solid rgba(156, 145, 167, 0.3);
-    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
+    border-top: 1px solid var(--lightPurple);
+    box-shadow: 0 -5px 20px var(--BoxShadow);
     z-index: 1000;
 }
 
@@ -69,14 +84,14 @@ body {
 
 .chat-header h2 {
     margin: 0;
-    color: rgb(46, 27, 65);
+    color: var(--purplish);
     font-size: 24px;
     font-weight: bolder;
 }
 
 .chat-header p {
     margin: 5px 0 0;
-    color: rgb(0, 0, 0);
+    color: black;
     font-size: 16px;
 }
 
@@ -93,7 +108,7 @@ body {
 .user-message {
     opacity: 1;
     align-self: flex-end;
-    background-color: rgb(156, 145, 167);
+    background-color: var(--lightPurple);
     color: white;
     border-bottom-right-radius: 5px;
 }
@@ -101,8 +116,8 @@ body {
 .bot-message {
     opacity: 1;
     align-self: flex-start;
-    background-color: rgba(255, 255, 255, 0.9);
-    color: rgb(46, 27, 65);
+    background-color:white;
+    color: var(--purplish);
     border-bottom-left-radius: 5px;
 }
 
@@ -121,8 +136,8 @@ body {
     border-radius: 30px;
     font-family: 'Manrope', sans-serif;
     font-size: 16px;
-    background-color: rgba(255, 255, 255, 0.9);
-    color: rgb(46, 27, 65);
+    background-color: white;
+    color: var(--purplish);
     resize: none;
     overflow: hidden;
     min-height: 70px;
@@ -132,12 +147,12 @@ body {
 
 #user-input:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(156, 145, 167, 0.5);
+    box-shadow: 0 0 0 2px var(--BoxShadow);
 }
 
 .send-btn {
     opacity: 1;
-    background-color: rgb(46, 27, 65);
+    background-color: var(--purplish);
     color: white;
     border: none;
     border-radius: 50%;
@@ -169,8 +184,7 @@ body {
     background-color: rgb(120, 120, 120);
     transform: none;
 }
-.send-btn:focus-visible,
-.record-btn:focus-visible {
+.send-btn:focus-visible{
   outline: 0;
   box-shadow:
     0 0 0 3px rgba(70, 44, 95, 0.35),
@@ -187,8 +201,8 @@ body {
     gap: 8px;
     opacity: 1;
     align-self: flex-start;
-    background-color: rgba(255, 255, 255, 0.9);
-    color: rgb(46, 27, 65);
+    background-color: white;
+    color: var(--purplish);
     max-width: 70%;
     padding: 12px 18px;
     border-radius: 20px;
@@ -205,7 +219,7 @@ body {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background-color: rgb(156, 145, 167);
+    background-color: var(--lightPurple);
     animation: typing 1.4s infinite ease-in-out;
 }
 
@@ -294,7 +308,7 @@ body {
 }
 
 .record-btn {
-    background-color: #e74c3c;
+    background-color: var(--lightRed);
     color: white;
     border: none;
     border-radius: 50%;
@@ -309,8 +323,8 @@ body {
 }
 
 .record-btn:hover {
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.18);
-  background-color: #e74c3c; /* keep original mic color */
+  box-shadow: 0 10px 18px var(--BoxShadow);
+  background-color: var(--lightRed); /* keep original mic color */
   transform: none;           /* disable previous hover scale */
 }
 
@@ -333,16 +347,16 @@ body {
         box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
     }
     70% {
-        box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+        box-shadow: 0 0 0 10px white;
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+        box-shadow: 0 0 0 0 white;
     }
 }
 
 .audio-message {
     align-self: flex-end;
-    background-color: rgb(156, 145, 167);
+    background-color: var(--lightPurple);
     color: white;
     border-bottom-right-radius: 5px;
     padding: 12px 18px;
@@ -366,7 +380,7 @@ body {
     right: -2px;
     width: 10px;
     height: 10px;
-    background: #22c55e;        /* green dot */
+    background: var(--GreenColor);        /* green dot */
     border: 2px solid #fff;
     border-radius: 999px;
     box-shadow: 0 0 0 1px rgba(0,0,0,0.1);

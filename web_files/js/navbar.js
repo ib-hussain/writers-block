@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", function () {
         // Map file names to data-page values if they don't match
         const pageMap = {
             'chatbot': 'chatbot',
-            'progress': 'progress',
+            'databaseView': 'databaseView',
             'profile': 'profile'
             // Add more mappings as needed
         };
