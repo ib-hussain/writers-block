@@ -19,7 +19,7 @@ I will provide the headers (outline sections) one by one. You will expand them w
 
 Prompt for intro
 Write intro answering the question: {INSERT_INTRO_QUESTION}. Provide two paragraphs, each 60 words. The first paragraph must give a direct and relevant answer to the question, using short, active sentences, smooth transitions, and easy-to-follow language. The second paragraph must be a strong call to action, connected naturally to the topic. Write in the second person. Keep every sentence under 15 words for readability. Use a Flesch Reading Score–friendly style.
-This should be the format: {INSERT_INTRO_EXAMPLE_FROM_THE_PREVIOUS_BLOG}
+This should be the format: {INSERT_INTRO_EXAMPLE}
 
 
 Prompt for final CTA
@@ -28,7 +28,7 @@ This should be the format: {INSERT_CTA_EXAMPLE}
 
 
 Prompt for FAQs
-Answer the following  FAQs clearly and directly, using the following formatting and content rules:
+Answer the following FAQs clearly and directly, using the following formatting and content rules:
 {INSERT_FAQ_QUESTIONS}
 Each question should be formatted as an H4 with bold text and Title Case.
 Seamlessly integrate the following keywords wherever relevant and natural: {KEYWORDS}

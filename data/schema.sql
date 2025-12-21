@@ -3,8 +3,7 @@
 -- USE blogWriter;
 CREATE TABLE IF NOT EXISTS BlogData (
     blogID INT PRIMARY KEY,
-    blogText TEXT NOT NULL ,
-    keywords TEXT DEFAULT NULL 
+    blogText TEXT NOT NULL 
 );
 -- 7 parts
 CREATE TABLE IF NOT EXISTS PromptData (
@@ -102,4 +101,4 @@ BEGIN
 END;
 $$;
 -- Mark "intro" as completed today
-SELECT mark_progress_column('intro');
+-- SELECT mark_progress_column('intro');

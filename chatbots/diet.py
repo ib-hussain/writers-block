@@ -38,48 +38,12 @@ def get_image_description(image_path: str="temp/download.jpeg", prompt: str = " 
             f"Name: {name}\n"
             f"Diet preferences: {diet_pref}\n"
             f"Age: {age}\n"
-            f"User Weight: {height}\n"#change this to daily stats table
-            f"User Height: {weight}\n"#change this to daily stats table
-            f"Diet History: {diet_history}\n"
-            f"Previous Medical History/Medical Conditions: {medical_cond}\n"
-            f"The Fitness goal of the user: {fitness_goal}\n"
-            f"Time deadline for completing goal: {time_deadline}\n"
-            f"First check if the image is of a meal or something edible, if not then tell the user what the picture is and thats it, nothing more should be said by you.\n"
-            f"You are a AI Diet agent for nutrition analysis and meal planning that must do the following tasks, no matter what:\n"
-            f"- Meal planning and nutritional suggestions\n"
-            f"- Vision-based analysis of food photos\n"
-            f"- Nutrient breakdown and diet goal comparison\n"
-            f"- Dietary preference accommodation\n"
-            f"- Calorie and macro tracking\n"
             f"(Your given output should be properly formatted markdown, addressed to the user, make no mistakes!)"
         )
         prompt = f"User Prompt:\n"+prompt + personalized_info
         if debug: print(" no Problem detected here 2")
         
-        # Read and encode image
-        with open(image_path, "rb") as image_file:
-            image_data = image_file.read()
-            base64_image = base64.b64encode(image_data).decode('utf-8')
-        # Determine MIME type based on file extension
-        mime_type, _ = mimetypes.guess_type(image_path)
-        if mime_type is None:
-            # Fallback for common extensions
-            extension = Path(image_path).suffix.lower()
-            if extension in ['.jpg', '.jpeg']:
-                mime_type = 'image/jpeg'
-            elif extension == '.png':
-                mime_type = 'image/png'
-            elif extension == '.ico':
-                mime_type = 'image/x-icon'
-            else:
-                mime_type = 'image/jpeg'  # Default fallback
         message_content = [
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:{mime_type};base64,{base64_image}"
-                }
-            },
             {
                 "type": "text",
                 "text": prompt
