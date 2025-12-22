@@ -34,7 +34,7 @@ body{
 }
 
 .pg-wrap{
-  max-width: 1150px;
+  max-width: 90%;
   margin: 90px auto 40px;
   padding: 0 16px 40px;
 }
@@ -166,6 +166,7 @@ body{
   gap:12px;
 }
 
+/* Each table block (like your current cards) */
 .table-block{
   background: rgba(255,255,255,0.55);
   border: 1px solid rgba(0,0,0,0.08);
@@ -194,26 +195,69 @@ body{
   opacity: .85;
 }
 
-.table-wrap{ width:100%; overflow-x:auto; }
+/* IMPORTANT FIX:
+   - allow vertical + horizontal scrolling
+   - wrap long text as paragraphs
+   - sticky header inside each scroll container
+*/
+.table-wrap{
+  width: 100%;
+  overflow: auto;            /* both axes */
+  max-height: 42vh;          /* each table stays manageable; adjust if needed */
+  border-radius: 14px;
+}
 
-table{ width:100%; border-collapse:collapse; font-size:14px; }
+/* Table sizing */
+.table-wrap table{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 980px;          /* ensures horizontal scroll when many columns */
+}
 
-thead th{
+/* Sticky header per table */
+.table-wrap thead th{
   text-align:left;
   padding:12px 14px;
   background: rgba(255,255,255,.75);
   color:#2b3446;
   font-weight:900;
-  white-space:nowrap;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid rgba(0,0,0,.06);
 }
 
-tbody td{
+/* Better row readability */
+.table-wrap tbody td{
   padding:10px 14px;
   border-top:1px solid rgba(0,0,0,.06);
-  white-space:nowrap;
+  vertical-align: top;
+
+  /* KEY CHANGE: allow paragraph wrapping */
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
 }
 
-tbody tr:hover{ background: rgba(255,255,255,.60); }
+.table-wrap tbody tr:hover{
+  background: rgba(255,255,255,.60);
+}
+
+/* Keep first columns compact if they exist (common for ids/dates) */
+.table-wrap th:nth-child(1),
+.table-wrap td:nth-child(1),
+.table-wrap th:nth-child(2),
+.table-wrap td:nth-child(2){
+  white-space: nowrap;
+}
+
+/* “No rows.” cell should not look cramped */
+.table-wrap td[colspan]{
+  font-weight: 800;
+  opacity: .85;
+}
 
 /* Buttons + errors */
 .btn{
@@ -224,8 +268,14 @@ tbody tr:hover{ background: rgba(255,255,255,.60); }
   font-weight:900;
   cursor:pointer;
   color: #1f2a44;
+  transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
 }
-.btn.ghost:hover{ background:#fff; }
+
+.btn.ghost:hover{
+  background:#fff;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(0,0,0,.10);
+}
 
 .error{
   margin: 12px 16px 16px;
@@ -293,4 +343,6 @@ tbody tr:hover{ background: rgba(255,255,255,.60); }
 /* Responsive */
 @media (max-width: 980px){
   .chart-grid{ grid-template-columns: 1fr; }
+  .pg-title h1{ font-size: 30px; }
+  .table-wrap{ max-height: 50vh; }
 }

@@ -34,8 +34,10 @@
         </div>
 
         <div class="control-actions">
-          <button id="loadBtn" class="btn btn-primary">Load</button>
-        </div>
+  <button id="loadBtn" class="btn btn-primary" type="button">Load</button>
+  <button id="downloadBtn" class="btn" type="button" disabled>Download CSV</button>
+</div>
+
       </section>
 
       <!-- NEW: DatabaseView-style table card -->
@@ -47,7 +49,16 @@
 
         <div class="table-wrap">
           <table id="historyTable">
-            <thead id="historyThead"></thead>
+            <thead id="historyThead">
+  <tr>
+    <th>ID</th>
+    <th>Entry time</th>
+    <th>Entry date</th>
+    <th>User prompt</th>
+    <th>Chat response</th>
+  </tr>
+</thead>
+
             <tbody id="historyTbody">
               <tr>
                 <td class="empty-cell">Select a date and click Load…</td>

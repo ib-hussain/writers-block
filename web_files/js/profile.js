@@ -6,24 +6,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const downloadBtn = document.getElementById("downloadBtn");
   const rowCount = document.getElementById("rowCount");
   const errorBox = document.getElementById("errorBox");
-
-  const thead = document.getElementById("historyThead");
   const tbody = document.getElementById("historyTbody");
 
   let lastRows = [];
 
-  // default to today
+  // Default: today (YYYY-MM-DD)
   if (!dateInput.value) {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
     dateInput.value = `${yyyy}-${mm}-${dd}`;
   }
 
-  function showLoading(isOn) {
-    overlay.classList.toggle("hidden", !isOn);
-    overlay.setAttribute("aria-hidden", String(!isOn));
+  function showLoading(on) {
+    overlay.classList.toggle("hidden", !on);
+    overlay.setAttribute("aria-hidden", String(!on));
   }
 
   function showError(msg) {
@@ -36,91 +34,135 @@ document.addEventListener("DOMContentLoaded", () => {
     errorBox.textContent = msg;
   }
 
-  function setRowCount(n) {
-    rowCount.textContent = `${n} row${n === 1 ? "" : "s"}`;
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
   }
 
-  function escapeCSV(val) {
-    if (val === null || val === undefined) return "";
-    const s = String(val);
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  }
-
-  function rowsToCSV(rows, columns) {
-    const header = columns.join(",");
-    const body = rows.map(r => columns.map(c => escapeCSV(r[c])).join(",")).join("\n");
-    return `${header}\n${body}\n`;
+  function setEmpty(message) {
+    tbody.innerHTML = `
+      <tr>
+        <td class="empty-cell" colspan="5">${escapeHtml(message)}</td>
+      </tr>`;
   }
 
   function renderTable(rows) {
-    tbody.innerHTML = "";
-    thead.innerHTML = "";
+    lastRows = Array.isArray(rows) ? rows : [];
+    rowCount.textContent = `${lastRows.length} rows`;
+    downloadBtn.disabled = lastRows.length === 0;
 
-    lastRows = rows || [];
-    setRowCount(lastRows.length);
-
-    if (!lastRows.length) {
-      downloadBtn.disabled = true;
-      tbody.innerHTML = `<tr><td class="empty-cell">No rows for this date.</td></tr>`;
+    if (lastRows.length === 0) {
+      setEmpty("No rows for the selected date.");
       return;
     }
 
-    downloadBtn.disabled = false;
+    const html = lastRows.map(r => {
+      const id = r.id ?? "";
+      const entryTime = r.entry ?? "";         // timestamptz string
+      const entryDate = r.entry_date ?? "";    // date string
+      const userprompt = r.userprompt ?? "";
+      const chatresponse = r.chatresponse ?? "";
 
-    // Use keys from first row (RealDictCursor order is stable)
-    const columns = Object.keys(lastRows[0]);
+      return `
+        <tr>
+          <td class="col-id">${escapeHtml(id)}</td>
+          <td class="col-entrytime">${escapeHtml(entryTime)}</td>
+          <td class="col-entrydate">${escapeHtml(entryDate)}</td>
+          <td><div class="cell-text max-cell">${escapeHtml(userprompt)}</div></td>
+          <td><div class="cell-text max-cell">${escapeHtml(chatresponse)}</div></td>
+        </tr>
+      `;
+    }).join("");
 
-    // THEAD
-    const trh = document.createElement("tr");
-    columns.forEach(col => {
-      const th = document.createElement("th");
-      th.textContent = col;
-      trh.appendChild(th);
-    });
-    thead.appendChild(trh);
+    tbody.innerHTML = html;
+  }
 
-    // TBODY
-    lastRows.forEach(r => {
-      const tr = document.createElement("tr");
-      columns.forEach(col => {
-        const td = document.createElement("td");
-        const v = r[col];
+  function buildCsv(rows) {
+    const headers = ["id", "entry", "entry_date", "userprompt", "chatresponse"];
+    const esc = (v) => {
+      const s = String(v ?? "");
+      const needsQuotes = /[",\n\r]/.test(s);
+      const safe = s.replaceAll('"', '""');
+      return needsQuotes ? `"${safe}"` : safe;
+    };
 
-        // Render long text as readable
-        td.textContent = (v === null || v === undefined) ? "" : String(v);
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
+    const lines = [];
+    lines.push(headers.join(","));
+    for (const r of rows) {
+      lines.push(headers.map(h => esc(r[h])).join(","));
+    }
+    return lines.join("\n");
+  }
+
+  function downloadCsv() {
+    if (!lastRows || lastRows.length === 0) return;
+
+    const csv = buildCsv(lastRows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `profileHistory_${dateInput.value}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   async function loadHistory() {
-    const d = (dateInput.value || "").trim();
     showError("");
+    setEmpty("Loading…");
+    showLoading(true);
 
-    if (!d) {
-      showError("Please pick a date.");
+    const date = (dateInput.value || "").trim();
+    if (!date) {
+      showLoading(false);
+      setEmpty("Select a date and click Load…");
+      showError("Missing date.");
       return;
     }
 
-    showLoading(true);
     try {
-      const res = await fetch(`/api/profile/history?date=${encodeURIComponent(d)}`);
+      const res = await fetch(`/api/profile/history?date=${encodeURIComponent(date)}`, {
+        headers: { "Accept": "application/json" }
+      });
+
+      // Always attempt to parse JSON (even on errors)
+      let payload = null;
+      const text = await res.text();
+      try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+
       if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || `Request failed (${res.status})`);
+        const code = payload?.code ? ` [${payload.code}]` : "";
+        const msg = payload?.message || payload?.error || `Request failed with ${res.status}`;
+        renderTable([]);
+        showError(`${msg}${code}`);
+        return;
       }
-      const data = await res.json();
-      renderTable(data.rows || []);
+
+      // Success payload expected: { success:true, rows:[...] }
+      const rows = payload?.rows || [];
+      renderTable(rows);
+
+      // Show extra diagnostics if present
+      if (payload?.success === false) {
+        showError(payload.message || payload.error || "Unknown error.");
+      }
+
     } catch (err) {
       renderTable([]);
-      showError(err.message || "Failed to load history.");
+      showError(err?.message || "Failed to load history.");
     } finally {
       showLoading(false);
     }
   }
 
-
   loadBtn.addEventListener("click", loadHistory);
+  downloadBtn.addEventListener("click", downloadCsv);
 });
+
