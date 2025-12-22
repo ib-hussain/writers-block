@@ -3,9 +3,9 @@
   <head>
     <link rel="icon" type="image/png" href="pictures/favicon.png" />
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Writing Assistant - Database View</title>
-    <link rel="stylesheet" href="css/databaseView.css"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Writer's Block - Database View</title>
+    <link rel="stylesheet" href="css/databaseView.css" />
   </head>
   <body>
     <script src="js/navbar.js"></script>
@@ -14,7 +14,8 @@
     <div id="loadingOverlay" class="loading-overlay hidden" aria-hidden="true">
       <div class="loading-card">
         <!-- Prefer GIF if you have it: /static/pictures/loading.gif -->
-        <img class="loading-gif" src="pictures/loading.gif" alt="Loading" onerror="this.style.display='none'; document.getElementById('loadingSpinner').classList.remove('hidden');" />
+        <img class="loading-gif" src="pictures/loading.gif" alt="Loading"
+          onerror="this.style.display='none'; document.getElementById('loadingSpinner').classList.remove('hidden');" />
         <div id="loadingSpinner" class="spinner hidden"></div>
         <p class="loading-text">Loading data…</p>
       </div>
@@ -43,8 +44,10 @@
             <div class="chart-title">Daily Input vs Output Words</div>
             <div id="barChart" class="chart"></div>
             <div class="chart-legend">
-              <span class="legend-item"><span class="dot dot-in"></span>Input (Userprompt)</span>
-              <span class="legend-item"><span class="dot dot-out"></span>Output (chatResponse)</span>
+              <span class="legend-item"><span class="dot dot-in"></span>Input
+                (Userprompt)</span>
+              <span class="legend-item"><span class="dot dot-out"></span>Output
+                (chatResponse)</span>
             </div>
           </div>
 
@@ -60,7 +63,7 @@
       <!-- DATABASE TABLES -->
       <section class="card table-card">
         <div class="card-head">
-          <h3>Tables (excluding profileHistory)</h3>
+          <h3>Database Tables </h3>
           <span class="pill">Auto-loaded</span>
         </div>
 
