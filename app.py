@@ -1,49 +1,39 @@
 # app.py
 from __future__ import annotations
-
 import os
 import atexit
 from datetime import datetime, date
 from contextlib import contextmanager
 from typing import Dict, Any, List, Optional, Tuple
-
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, redirect
-
 import psycopg2
 import psycopg2.extras
 from psycopg2.pool import SimpleConnectionPool, PoolError
 
-# -----------------------------------------------------------------------------
 # ENV
-# -----------------------------------------------------------------------------
 try:
     load_dotenv()
 except Exception:
     pass
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 if not DATABASE_URL:
     # Fail fast with a clear error rather than mysterious DB failures later.
     raise RuntimeError("DATABASE_URL is not set. Put it in your .env file.")
-
-# -----------------------------------------------------------------------------
 # FLASK
-# -----------------------------------------------------------------------------
 app = Flask(
-    __name__,
+    "Writers Block",
     static_folder="web_files",
     static_url_path="/web_files"
 )
 app.secret_key = SECRET_KEY
-# -----------------------------------------------------------------------------
 # DB POOL
-# -----------------------------------------------------------------------------
 # Keep pool small in local dev; Supabase can also enforce limits.
-POOL_MIN = int(os.getenv("DB_POOL_MIN", "1"))
-POOL_MAX = int(os.getenv("DB_POOL_MAX", "10"))
+POOL_MIN = int(os.getenv("DB_POOL_MIN" ))
+POOL_MAX = int(os.getenv("DB_POOL_MAX"))
 # psycopg2's pool accepts kwargs for connect(). Use sslmode=require for Supabase.
 pool = SimpleConnectionPool(
     minconn=POOL_MIN,
@@ -81,9 +71,7 @@ def db_conn():
                 pool.putconn(conn)
             except Exception:
                 pass
-# -----------------------------------------------------------------------------
 # HELPERS
-# -----------------------------------------------------------------------------
 def json_error(code: str, message: str, http_status: int = 500, **extra):
     payload = {"success": False, "code": code, "message": message}
     if extra:
@@ -124,9 +112,7 @@ def get_profilehistory_columns(conn) -> Tuple[str, str]:
             f"profileHistory columns not found. Present columns: {cols}. "
             f"Expected either (Userprompt, chatResponse) or (userprompt, chatresponse)."
         )
-# -----------------------------------------------------------------------------
 # BASIC PAGES
-# -----------------------------------------------------------------------------
 @app.route("/")
 def index():
     return redirect("/web_files/chatbot.html")
@@ -136,9 +122,7 @@ def database_view_page():
 @app.route("/profile")
 def profile_page():
     return redirect("/web_files/profile.html")
-# -----------------------------------------------------------------------------
 # API: TABLES
-# -----------------------------------------------------------------------------
 @app.route("/api/db/tables")
 def api_db_tables():
     limit = request.args.get("limit", default=200, type=int)
@@ -189,9 +173,7 @@ def api_db_tables():
         )
     except Exception as e:
         return json_error("DB_TABLES_FAIL", "Failed to load tables.", 500, details=str(e))
-# -----------------------------------------------------------------------------
 # API: TOKENS (WORDS) PER DAY FOR CURRENT MONTH
-# -----------------------------------------------------------------------------
 @app.route("/api/stats/tokens/month")
 def api_tokens_month():
     try:
@@ -245,9 +227,7 @@ def api_tokens_month():
         return json_error("POOL_EXHAUSTED", "DB pool exhausted.", 500, details=str(e))
     except Exception as e:
         return json_error("TOKENS_MONTH_FAIL", "Failed to compute token stats.", 500, details=str(e))
-# -----------------------------------------------------------------------------
 # API: PROFILE HISTORY BY DATE
-# -----------------------------------------------------------------------------
 @app.route("/api/profile/history")
 def api_profile_history_by_date():
     d = (request.args.get("date") or "").strip()
@@ -308,10 +288,56 @@ def api_profile_history_by_date():
         return json_error("POOL_EXHAUSTED", "DB pool exhausted.", 500, details=str(e))
     except Exception as e:
         return json_error("PROFILE_HISTORY_FAIL", "Failed to load profile history.", 500, details=str(e))
+# Add these helper functions after your existing helper functions (after get_profilehistory_columns)
+@app.route('/api/chat', methods=['POST'])
+def handle_chat():
+    """
+    Handle chatbot messages.
+    Stores user prompt and generated response in profileHistory.
+    Marks progress.chat as TRUE for today.
+    """
+    try:
+        # Parse request
+        data = request.get_json()
+        if not data:
+            return json_error("NO_DATA", "No JSON data provided", 400)
+        user_message = data.get('message', '').strip()
+        if not user_message:
+            return json_error("EMPTY_MESSAGE", "Message cannot be empty", 400)
+        # Generate response (placeholder for now - integrate with your LLM)
+        bot_response = f"Echo: {user_message}"
+        # issue: change the above
+        
+        # # Store in database
+        # with db_conn() as conn:
+        #     # Get correct column names
+        #     user_col, resp_col = get_profilehistory_columns(conn)
+            
+        #     with conn.cursor() as cur:
+        #         # Insert into profileHistory
+        #         # Using parameterized query for safety
+        #         sql = f"""
+        #             INSERT INTO profileHistory (entry_date, entry, {user_col}, {resp_col})
+        #             VALUES (CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s)
+        #             RETURNING id;
+        #         """
+        #         cur.execute(sql, (user_message, bot_response))
+        #         inserted_id = cur.fetchone()[0]
+        #         conn.commit()
+        
+        # Return success with response
+        return jsonify({
+            "success": True,
+            "response": bot_response,
+            # "message_id": inserted_id,
+            "timestamp": datetime.now().isoformat()
+        }), 200
+    except PoolError as e:
+        return json_error("POOL_EXHAUSTED", "Database connection pool exhausted", 500, details=str(e))
+    except Exception as e:
+        app.logger.error(f"Chat endpoint error: {e}")
+        return json_error("CHAT_FAILED", "Failed to process chat message", 500, details=str(e))
 
-# -----------------------------------------------------------------------------
 # MAIN (local dev)
-# -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Keep host/port aligned with your usage: 127.0.0.1:10000
-    app.run(host="127.0.0.1", port=10000, debug=True)
+    app.run(host="0.0.0.0", port=10000, debug=int(os.getenv("DEBUGGING_MODE" )))

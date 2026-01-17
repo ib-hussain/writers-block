@@ -1,187 +1,148 @@
-document.addEventListener("DOMContentLoaded", function() {
-    // DOM Elements
-    const messageForm = document.getElementById('message-form');
-    const userInput = document.getElementById('user-input');
-    const DEFAULT_PLACEHOLDER = userInput.placeholder || "Type your message...";
-    const sendBtn = document.getElementById('send-btn');
-    const chatMessages = document.getElementById('chat-messages');
-    // State
-    let isTyping = false;
-    // Auto-resize functionality for textarea
-    function autoResize() {
-        userInput.style.height = 'auto';
-        userInput.style.height = Math.max(70, Math.min(userInput.scrollHeight, 150)) + 'px';
-    }
-    // Initialize auto-resize
-    userInput.addEventListener('input', autoResize);
-    
-    // Handle Enter key behavior
-    userInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && e.shiftKey) {
-            userInput.value += "";
-            autoResize();
-        }else if (e.key === 'Enter' ) {
-            e.preventDefault();
-            messageForm.dispatchEvent(new Event('submit'));
+(() => {
+  let chatMessages, messageForm, userInput, sendBtn;
+  let isTyping = false;
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function scrollToBottom() {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function addMessage(text, className) {
+    const div = document.createElement("div");
+    div.className = `message ${className}`;
+    div.innerHTML = escapeHtml(text);
+    chatMessages.appendChild(div);
+    scrollToBottom();
+    return div;
+  }
+
+  function addTypingIndicator() {
+    const typing = document.createElement("div");
+    typing.className = "typing-indicator";
+    typing.id = "typing-indicator";
+    typing.innerHTML = `
+      <div class="typing-dots">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+      <div>Typing...</div>
+    `;
+    chatMessages.appendChild(typing);
+    scrollToBottom();
+    return typing;
+  }
+
+  function removeTypingIndicator() {
+    const typing = document.getElementById("typing-indicator");
+    if (typing) typing.remove();
+  }
+
+  function setInputState(enabled) {
+    userInput.disabled = !enabled;
+    sendBtn.disabled = !enabled;
+  }
+
+  function autoResize() {
+    userInput.style.height = "auto";
+    userInput.style.height = Math.min(userInput.scrollHeight, 160) + "px";
+  }
+
+  async function loadChatHistoryForToday() {
+    const today = new Date().toISOString().split("T")[0];
+    const typing = addTypingIndicator();
+
+    try {
+      const res = await fetch(`/api/profile/history?date=${encodeURIComponent(today)}`);
+      const data = await res.json();
+
+      chatMessages.innerHTML = "";
+
+      if (res.ok && data && data.success === true && Array.isArray(data.rows) && data.rows.length > 0) {
+        for (const row of data.rows) {
+          if (row.userprompt) addMessage(row.userprompt, "user-message");
+          if (row.chatresponse) addMessage(row.chatresponse, "bot-message");
         }
-    });
-    
-    // Events
-    messageForm.addEventListener('submit', handleMessageSubmit);
-
-    // ===== Chat History Loader =====
-async function loadChatHistory() {
-
-}
-// Kick off history load after bootstrapping the page
-loadChatHistory();
-
-
-    // ----- Send text (and maybe image) -----
-    async function handleMessageSubmit(e) {
-        
+      } else {
+        // No history (or 404 NO_ROWS_FOR_DATE)
+        addMessage("I'm your writing assistant. How can I help you today?", "bot-message");
+      }
+    } catch (err) {
+      console.error("History load failed:", err);
+      chatMessages.innerHTML = "";
+      addMessage("Error loading chat history. Starting fresh session.", "bot-message");
+    } finally {
+      typing.remove();
     }
-    // ----- UI helpers -----
-    function showSpinnerOn(btn) {
-        btn.disabled = true;
-        btn.dataset.prev = btn.innerHTML;
-        btn.innerHTML = '<div class="spinner"></div>';
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const msg = userInput.value.trim();
+    if (!msg || isTyping) return;
+
+    addMessage(msg, "user-message");
+    userInput.value = "";
+    autoResize();
+
+    isTyping = true;
+    setInputState(false);
+
+    const typing = addTypingIndicator();
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg })
+      });
+
+      const data = await res.json();
+
+      typing.remove();
+
+      if (!res.ok || !data || data.success !== true) {
+        const serverMsg = (data && data.message) ? data.message : `API error: ${res.status}`;
+        addMessage(`Server error: ${serverMsg}`, "bot-message");
+        return;
+      }
+
+      addMessage(data.response || "No response returned.", "bot-message");
+    } catch (err) {
+      console.error("Send failed:", err);
+      typing.remove();
+      addMessage("Sorry, I encountered an error. Please try again.", "bot-message");
+    } finally {
+      isTyping = false;
+      setInputState(true);
+      userInput.focus();
     }
-    function hideSpinnerOn(btn) {
-        if (!btn.dataset.prev) return;
-        btn.disabled = false;
-        btn.innerHTML = btn.dataset.prev;
-        delete btn.dataset.prev;
-    }
+  }
 
-    function setInputState(enabled) {
-        userInput.disabled = !enabled;
-        sendBtn.disabled = !enabled;
-        userInput.placeholder = enabled ? "Type your message..." : "Please wait...";
-    }
+  document.addEventListener("DOMContentLoaded", () => {
+    chatMessages = document.getElementById("chat-messages");
+    messageForm = document.getElementById("message-form");
+    userInput = document.getElementById("user-input");
+    sendBtn = document.getElementById("send-btn");
 
-    function addMessage(text, className) {
-        if (!text && className !== 'bot-message') return;
-        const div = document.createElement('div');
-        div.classList.add('message', className);
-        div.innerHTML = className === 'bot-message'
-            ? parseMarkdown(text || '')
-            : (text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        chatMessages.appendChild(div);
-        scrollToBottom();
-    }
-
-
-    function parseMarkdown(md) {
-        if (!md) return "";
-        md = String(md).replace(/\r\n/g, "\n");
-
-        const lines = md.split("\n");
-        let html = "";
-        const listStack = []; // stack of {type: 'ul'|'ol', indent: number}
-        let inP = false;
-
-        const escapeHtml = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-        const inlineFormat = txt => {
-            txt = escapeHtml(txt);
-            txt = txt.replace(/`([^`]+)`/g, "<code>$1</code>");
-            txt = txt.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-            txt = txt.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\w)/g, "$1<em>$2</em>");
-            return txt;
-        };
-        const closeParagraph = () => { if (inP) { html += "</p>"; inP = false; } };
-        const closeListsToIndent = (indent) => {
-            while (listStack.length && listStack[listStack.length - 1].indent >= indent) {
-                const { type } = listStack.pop();
-                html += (type === "ul" ? "</ul>" : "</ol>");
-            }
-        };
-        const openListIfNeeded = (type, indent) => {
-            // if same type & indent exists, keep; else open new
-            if (!listStack.length || listStack[listStack.length - 1].indent < indent || listStack[listStack.length - 1].type !== type) {
-                listStack.push({ type, indent });
-                html += (type === "ul" ? "<ul>" : "<ol>");
-            }
-        };
-        const closeAllLists = () => closeListsToIndent(0);
-
-        for (let i = 0; i < lines.length; i++) {
-            const raw = lines[i];
-            if (raw.trim() === "") {
-                closeParagraph();
-                closeAllLists();
-                continue;
-            }
-
-            // Headings: **Title** alone or #, ##, ...
-            const boldHeading = raw.trim().match(/^\*\*(.+?)\*\*$/);
-            if (boldHeading) {
-                closeParagraph(); closeAllLists();
-                html += `<h3>${inlineFormat(boldHeading[1])}</h3>`;
-                continue;
-            }
-            const atx = raw.match(/^(\s*)(#{1,6})\s+(.*)$/);
-            if (atx) {
-                closeParagraph(); closeAllLists();
-                const level = Math.min(6, atx[2].length);
-                html += `<h${level}>${inlineFormat(atx[3].trim())}</h${level}>`;
-                continue;
-            }
-
-            // Lists: support *, -, + and numbered (with indentation)
-            const liMatch = raw.match(/^(\s*)([*+\-]|\d+\.)\s+(.*)$/);
-            if (liMatch) {
-                const indent = liMatch[1].length; // number of leading spaces
-                const marker = liMatch[2];
-                const content = liMatch[3];
-
-                closeParagraph();
-
-                const isOrdered = /^\d+\.$/.test(marker);
-                const type = isOrdered ? "ol" : "ul";
-
-                // adjust nesting
-                if (!listStack.length || indent > listStack[listStack.length - 1].indent) {
-                    openListIfNeeded(type, indent);
-                } else if (indent < listStack[listStack.length - 1].indent || listStack[listStack.length - 1].type !== type) {
-                    closeListsToIndent(indent + (isOrdered ? 0 : 0));
-                    openListIfNeeded(type, indent);
-                } else {
-                    // same level & type -> nothing to open/close
-                }
-
-                html += `<li>${inlineFormat(content.trim())}</li>`;
-                continue;
-            }
-
-            // Paragraphs (join consecutive lines with <br>)
-            closeAllLists();
-            if (!inP) { html += "<p>"; inP = true; html += inlineFormat(raw.trim()); }
-            else { html += "<br>" + inlineFormat(raw.trim()); }
-        }
-
-        // tidy up
-        if (inP) html += "</p>";
-        closeAllLists();
-        return html;
+    if (!chatMessages || !messageForm || !userInput || !sendBtn) {
+      console.error("Chatbot DOM elements not found. Check chatbot.html IDs.");
+      return;
     }
 
+    userInput.addEventListener("input", autoResize);
+    messageForm.addEventListener("submit", handleSubmit);
 
-    function addTypingIndicator() {
-        const typing = document.createElement('div');
-        typing.classList.add('typing-indicator');
-        typing.innerHTML = `
-            <div class="typing-dots">
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-            </div>`;
-        chatMessages.appendChild(typing);
-        scrollToBottom();
-        return typing;
-    }
-
-    function scrollToBottom() {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    }
-});
+    autoResize();
+    userInput.focus();
+    loadChatHistoryForToday();
+  });
+})();
