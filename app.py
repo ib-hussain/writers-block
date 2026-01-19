@@ -13,7 +13,6 @@ import psycopg2.extras
 from psycopg2.pool import PoolError
 from data.database_postgres import get_db
 
-
 #==================================================================================================================================================
 # DEFINE CONSTANTS AND CONFIG
 DEBUGGING_MODE = True
@@ -34,6 +33,10 @@ REFERENCES_MAX_TOKENS = 512
 REFERENCES_MIN_TOKENS = 128
 FULL_TEXT_MAX_TOKENS = 3584
 FULL_TEXT_MIN_TOKENS = 1792
+# Default examples for when fields are empty
+# issue: change this to be more relevant 
+DEFAULT_INTRO_EXAMPLE = "For example, imagine you were involved in a car accident at a busy intersection..."
+DEFAULT_CTA_EXAMPLE = "Contact our experienced legal team today for a free consultation."
 # ENV
 try:
     load_dotenv()
@@ -41,7 +44,7 @@ except Exception:
     pass
 SECRET_KEY = os.getenv("SECRET_KEY")
 # USER INPUTS 
-### PROMPT VARIABLES
+### PROMPT VARIABLES (defaults - will be overridden by UI)
 TITLE=""
 KEYWORDS="lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap"
 INSERT_INTRO_QUESTION=""
@@ -65,8 +68,7 @@ app = Flask(
 app.secret_key = SECRET_KEY
 # DB POOL
 db = get_db()
-
-# HELPERS(move them to another page later)
+# HELPERS
 def json_error(code: str, message: str, http_status: int = 500, **extra):
     payload = {"success": False, "code": code, "message": message}
     if extra:
@@ -78,10 +80,7 @@ def parse_yyyy_mm_dd(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 def get_profilehistory_columns(conn) -> Tuple[str, str]:
     """
-    You told me "Userprompt" and "chatResponse" are case-sensitive and must be quoted.
-    However, your schema.sql shows lower-case userprompt/chatresponse.
-    This function detects what actually exists in the database and returns the correct
-    column identifiers to select from.
+    Detect actual column names in profilehistory table.
     """
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute("""
@@ -94,15 +93,12 @@ def get_profilehistory_columns(conn) -> Tuple[str, str]:
         cols = [r["column_name"] for r in cur.fetchall()]
         colset = set(cols)
 
-        # Prefer exact case-sensitive names if present
         if "Userprompt" in colset and "chatResponse" in colset:
             return '"Userprompt"', '"chatResponse"'
 
-        # Fallback to lowercase (most likely)
         if "userprompt" in colset and "chatresponse" in colset:
             return "userprompt", "chatresponse"
 
-        # If schema is inconsistent, fail with a precise error
         raise RuntimeError(
             f"profileHistory columns not found. Present columns: {cols}. "
             f"Expected either (Userprompt, chatResponse) or (userprompt, chatresponse)."
@@ -116,10 +112,6 @@ def index():
 def api_db_table(table_name: str):
     """
     Return a single table (safe identifier handling) with FULL rows.
-
-    Performance notes:
-      - Avoid COUNT(*) (slow on large tables); use len(rows)
-      - Avoid ORDER BY unless you know an indexed key
     """
     excluded = {"profilehistory"}
     try:
@@ -128,7 +120,6 @@ def api_db_table(table_name: str):
             return json_error("MISSING_TABLE", "Missing table_name in URL path.", 400)
         with db.conn() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                # Validate table name exists in public schema (prevents SQL injection via identifiers)
                 cur.execute("""
                     SELECT tablename
                     FROM pg_catalog.pg_tables
@@ -142,7 +133,7 @@ def api_db_table(table_name: str):
                 actual_name = allowed_lc.get(req.lower())
                 if not actual_name:
                     return json_error("UNKNOWN_TABLE", "Table not found.", 404, table=req, available=allowed)
-                # Columns
+                
                 cur.execute("""
                     SELECT column_name
                     FROM information_schema.columns
@@ -150,10 +141,11 @@ def api_db_table(table_name: str):
                     ORDER BY ordinal_position;
                 """, (actual_name,))
                 columns = [r["column_name"] for r in cur.fetchall()]
-                # Full rows (no ORDER BY, no LIMIT)
+                
                 tbl_ident = sql.Identifier(actual_name)
                 cur.execute(sql.SQL("SELECT * FROM {}").format(tbl_ident))
                 rows = cur.fetchall()
+        
         return jsonify({
             "success": True,
             "table": {
@@ -167,18 +159,15 @@ def api_db_table(table_name: str):
         return json_error("POOL_EXHAUSTED", "DB connection pool exhausted.", 500, details=str(e))
     except Exception as e:
         return json_error("DB_TABLE_FAIL", "Failed to load table.", 500, details=str(e))
-
 # API: TOKENS (WORDS) PER DAY FOR CURRENT MONTH STATS
 @app.route("/api/stats/tokens/month")
 def api_tokens_month():
     try:
         with db.conn() as conn:
-            # detect correct profileHistory prompt/response columns
             user_col, resp_col = get_profilehistory_columns(conn)
 
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                # Note: we must inject identifiers safely: only from controlled values returned above
-                sql = f"""
+                sql_query = f"""
                     WITH daily AS (
                         SELECT
                             entry_date,
@@ -210,7 +199,7 @@ def api_tokens_month():
                     FROM daily
                     ORDER BY entry_date ASC;
                 """
-                cur.execute(sql)
+                cur.execute(sql_query)
                 daily = cur.fetchall()
 
                 cur.execute("SELECT to_char(CURRENT_DATE, 'Mon YYYY') AS month_label;")
@@ -239,8 +228,7 @@ def api_profile_history_by_date():
             user_col, resp_col = get_profilehistory_columns(conn)
 
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                # Force a stable output order and stable JSON keys
-                sql = f"""
+                sql_query = f"""
                     SELECT
                         id,
                         entry AS entry,
@@ -251,11 +239,10 @@ def api_profile_history_by_date():
                     WHERE entry_date = %s
                     ORDER BY id ASC;
                 """
-                cur.execute(sql, (parsed_date,))
+                cur.execute(sql_query, (parsed_date,))
                 rows = cur.fetchall()
+                
                 if not rows:
-                    # Diagnostics: prove whether data exists but entry_date alignment differs
-                    # (timezone boundary issues / entry_date population issues)
                     try:
                         cur.execute("""
                             SELECT
@@ -267,6 +254,7 @@ def api_profile_history_by_date():
                         diag = cur.fetchone() or {}
                     except Exception as e:
                         diag = {"diag_error": str(e)}
+                    
                     return jsonify({
                         "success": False,
                         "code": "NO_ROWS_FOR_DATE",
@@ -278,11 +266,13 @@ def api_profile_history_by_date():
                             "does not match the selected date due to timezone/date derivation."
                         )
                     }), 404
+        
         return jsonify({"success": True, "code": "OK", "date": d, "rows": rows}), 200
     except PoolError as e:
         return json_error("POOL_EXHAUSTED", "DB pool exhausted.", 500, details=str(e))
     except Exception as e:
         return json_error("PROFILE_HISTORY_FAIL", "Failed to load profile history.", 500, details=str(e))
+# API: CHAT ENDPOINT
 @app.route('/api/chat', methods=['POST'])
 def handle_chat():
     """
@@ -297,34 +287,53 @@ def handle_chat():
         if not user_message:
             return json_error("EMPTY_MESSAGE", "Message cannot be empty", 400)
 
-        # --- Build a stable, explicit prompt block for future LLM integration ---
-        # Keep vars in a deterministic order so prompts are reproducible.
+        # --- Build prompt with variables ---
         VAR_ORDER = [
             "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION", 
             "INSERT_INTRO_EXAMPLE", "INSERT_CTA_EXAMPLE",
-            # issue : make a condition cuh that if the "INSERT_INTRO_EXAMPLE", "INSERT_CTA_EXAMPLE" are empty then they need to be filled with "here is example" (this placeholder will be replaced with something else later)
             "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
             "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE"
         ]
+        
         def _clean(v):
+            """Clean and validate variable value"""
             if v is None:
                 return ""
             return str(v).strip()
-        vars_lines = []
+        
+        # Process variables and apply defaults for empty example fields
+        processed_vars = {}
         for k in VAR_ORDER:
             v = _clean(vars_payload.get(k, ""))
+            
+            # Apply default examples if fields are empty
+            if k == "INSERT_INTRO_EXAMPLE" and v == "":
+                v = DEFAULT_INTRO_EXAMPLE
+            elif k == "INSERT_CTA_EXAMPLE" and v == "":
+                v = DEFAULT_CTA_EXAMPLE
+            
+            processed_vars[k] = v
+        
+        # Build variables block only for non-empty values
+        vars_lines = []
+        for k in VAR_ORDER:
+            v = processed_vars[k]
             if v != "":
                 vars_lines.append(f"{k}: {v}")
+        
         vars_block = ""
         if vars_lines:
-            vars_block = "PROMPT_VARIABLES:\n" + "\n".join(vars_lines) + "\n"
+            vars_block = "PROMPT_VARIABLES:\n" + "\n".join(vars_lines) + "\n\n"
 
-        # This is what you will later pass to your LLM as user content or system+user prompt.
-        # For now, keep your placeholder response:
+        # Compose final prompt for LLM
         composed_user_prompt = f"{vars_block}{user_message}"
+        
+        # issue:
+        # TODO: Replace this with actual LLM API call
+        # For now, using echo response
         bot_response = f"Echo: {composed_user_prompt}"
 
-        # --- Persist to DB ---
+        # --- Persist to DB (your existing code - not disturbed) ---
         with db.conn() as conn:
             with conn.cursor() as cur:
                 insert_sql = f"""
@@ -339,8 +348,12 @@ def handle_chat():
             "response": bot_response,
             "timestamp": datetime.now().isoformat()
         }), 200
+        
     except PoolError as e:
         return json_error("POOL_EXHAUSTED", "Database connection pool exhausted", 500, details=str(e))
+    except psycopg2.Error as e:
+        app.logger.error(f"Database error in chat endpoint: {e}")
+        return json_error("DB_ERROR", "Database operation failed", 500, details=str(e))
     except Exception as e:
         app.logger.error(f"Chat endpoint error: {e}")
         return json_error("CHAT_FAILED", "Failed to process chat message", 500, details=str(e))

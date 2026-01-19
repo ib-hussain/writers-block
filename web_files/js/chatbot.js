@@ -1,6 +1,6 @@
 (() => {
   let chatMessages, messageForm, userInput, sendBtn;
-  let toggleVarsBtn, closeVarsBtn, varsPanel, saveVarsBtn, resetVarsBtn, varsStatus;
+  let varsPanel, varsToggleHeader, saveVarsBtn, resetVarsBtn, varsStatus;
 
   let isTyping = false;
 
@@ -10,6 +10,11 @@
     "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
     "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE"
   ];
+
+  // Default values for variables
+  const DEFAULT_VALUES = {
+    "KEYWORDS": "lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap"
+  };
 
   const LS_KEY = "wb_prompt_vars_v1";
 
@@ -64,21 +69,15 @@
 
   function autoResize() {
     userInput.style.height = "auto";
-    userInput.style.height = Math.min(userInput.scrollHeight, 160) + "px";
+    userInput.style.height = Math.min(userInput.scrollHeight, 140) + "px";
   }
 
   function todayYYYYMMDD() {
     return new Date().toISOString().split("T")[0];
   }
 
-  function openVars() {
-    varsPanel.classList.add("open");
-    varsPanel.setAttribute("aria-hidden", "false");
-  }
-
-  function closeVars() {
-    varsPanel.classList.remove("open");
-    varsPanel.setAttribute("aria-hidden", "true");
+  function toggleVarsPanel() {
+    varsPanel.classList.toggle("collapsed");
   }
 
   function getVarsFromUI() {
@@ -93,18 +92,24 @@
   function setVarsToUI(varsObj) {
     for (const k of VAR_KEYS) {
       const el = document.getElementById(`VAR_${k}`);
-      if (el) el.value = (varsObj?.[k] ?? "");
+      if (el) {
+        // Priority: saved value > default value > empty
+        const value = varsObj?.[k] !== undefined && varsObj?.[k] !== "" 
+          ? varsObj[k] 
+          : (DEFAULT_VALUES[k] || "");
+        el.value = value;
+      }
     }
   }
 
   function loadVars() {
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (!raw) return {};
+      if (!raw) return null; // Return null if nothing saved yet
       const parsed = JSON.parse(raw);
-      return (parsed && typeof parsed === "object") ? parsed : {};
+      return (parsed && typeof parsed === "object") ? parsed : null;
     } catch {
-      return {};
+      return null;
     }
   }
 
@@ -122,8 +127,6 @@
 
   async function loadChatHistoryForToday() {
     const today = todayYYYYMMDD();
-
-    // Keep the initial bot message only until we know we have history
     const typing = addTypingIndicator();
 
     try {
@@ -134,9 +137,10 @@
 
       if (res.ok && data && data.success === true && Array.isArray(data.rows) && data.rows.length > 0) {
         for (const row of data.rows) {
-          // userprompt may contain the PROMPT_VARIABLES block; we should show only the final user message line.
-          // For now: show full stored prompt so you can verify vars are being applied.
-          if (row.userprompt) addMessage(row.userprompt, "user-message");
+          if (row.userprompt) {
+            const userMsg = extractUserMessage(row.userprompt);
+            addMessage(userMsg, "user-message");
+          }
           if (row.chatresponse) addMessage(row.chatresponse, "bot-message");
         }
       } else {
@@ -149,6 +153,29 @@
     } finally {
       typing.remove();
     }
+  }
+
+  function extractUserMessage(fullPrompt) {
+    // Extract just the user message, removing PROMPT_VARIABLES block
+    const lines = fullPrompt.split('\n');
+    const varStartIndex = lines.findIndex(line => line.trim() === 'PROMPT_VARIABLES:');
+    
+    if (varStartIndex === -1) {
+      return fullPrompt.trim();
+    }
+    
+    // Find where variables end (look for line that doesn't contain ":")
+    let messageStartIndex = varStartIndex + 1;
+    for (let i = varStartIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      // Empty line or line without ":" indicates end of variables
+      if (line === "" || (!line.includes(':') && line.length > 0)) {
+        messageStartIndex = i;
+        break;
+      }
+    }
+    
+    return lines.slice(messageStartIndex).join('\n').trim();
   }
 
   async function handleSubmit(e) {
@@ -202,9 +229,8 @@
     userInput = document.getElementById("user-input");
     sendBtn = document.getElementById("send-btn");
 
-    toggleVarsBtn = document.getElementById("toggleVarsBtn");
-    closeVarsBtn = document.getElementById("closeVarsBtn");
     varsPanel = document.getElementById("varsPanel");
+    varsToggleHeader = document.getElementById("varsToggleHeader");
     saveVarsBtn = document.getElementById("saveVarsBtn");
     resetVarsBtn = document.getElementById("resetVarsBtn");
     varsStatus = document.getElementById("varsStatus");
@@ -217,33 +243,44 @@
     userInput.addEventListener("input", autoResize);
     messageForm.addEventListener("submit", handleSubmit);
 
-    if (toggleVarsBtn && varsPanel) {
-      toggleVarsBtn.addEventListener("click", () => openVars());
-    }
-    if (closeVarsBtn) {
-      closeVarsBtn.addEventListener("click", () => closeVars());
+    // Toggle panel on header click
+    if (varsToggleHeader && varsPanel) {
+      varsToggleHeader.addEventListener("click", toggleVarsPanel);
     }
 
     if (saveVarsBtn) {
       saveVarsBtn.addEventListener("click", () => {
         const varsObj = getVarsFromUI();
         saveVars(varsObj);
-        setStatus("Saved.");
+        setStatus("✓ Saved");
       });
     }
 
     if (resetVarsBtn) {
       resetVarsBtn.addEventListener("click", () => {
-        const empty = {};
-        for (const k of VAR_KEYS) empty[k] = "";
-        setVarsToUI(empty);
-        saveVars(empty);
-        setStatus("Reset.");
+        if (confirm("Are you sure you want to reset all variables to default values?")) {
+          const defaults = {};
+          for (const k of VAR_KEYS) {
+            defaults[k] = DEFAULT_VALUES[k] || "";
+          }
+          setVarsToUI(defaults);
+          saveVars(defaults);
+          setStatus("✓ Reset to defaults");
+        }
       });
     }
 
-    // Load vars to UI
-    setVarsToUI(loadVars());
+    // Load saved vars OR set defaults if first time
+    const savedVars = loadVars();
+    if (savedVars === null) {
+      // First time - use defaults
+      setVarsToUI(DEFAULT_VALUES);
+      // Save defaults to localStorage so keywords persist
+      saveVars(DEFAULT_VALUES);
+    } else {
+      // Load saved values (will use defaults for any missing values)
+      setVarsToUI(savedVars);
+    }
 
     autoResize();
     userInput.focus();

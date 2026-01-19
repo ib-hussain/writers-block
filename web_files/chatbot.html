@@ -12,18 +12,14 @@
     <script src="js/navbar.js"></script>
 
     <div class="chat-shell">
-      <!-- Left: Chat -->
+      <!-- Main Chat Container -->
       <div class="chat-container">
         <div class="chat-header">
           <div class="chat-header-row">
             <div>
               <h2>Writing Assistant</h2>
-              <p>How can I help you today?</p>
+              <p>Configure your prompt variables below and start chatting</p>
             </div>
-
-            <button id="toggleVarsBtn" class="vars-toggle" type="button">
-              Prompt Variables
-            </button>
           </div>
         </div>
 
@@ -50,32 +46,87 @@
         </div>
       </div>
 
-      <!-- Right: Variables -->
-      <aside id="varsPanel" class="vars-panel" aria-hidden="true">
-        <div class="vars-head">
-          <div class="vars-title">Prompt Variables</div>
-          <button id="closeVarsBtn" class="vars-close" type="button">Close</button>
+      <!-- Variables Panel (Below Chat) -->
+      <section id="varsPanel" class="vars-panel">
+        <div class="vars-head" id="varsToggleHeader">
+          <div class="vars-title-row">
+            <div class="vars-title">Prompt Variables</div>
+            <span class="vars-toggle-icon">▼</span>
+          </div>
+          <div style="font-size: 13px; color: #666; font-weight: 500;">
+            Click to expand/collapse
+          </div>
         </div>
 
         <div class="vars-body">
           <div class="vars-grid">
-            <label>Title <input id="VAR_TITLE" type="text" placeholder="TITLE" /></label>
-            <label>Keywords <textarea id="VAR_KEYWORDS" rows="2" placeholder="KEYWORDS">lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap</textarea></label>
-            <!-- issue: i want the above keywords to appear in the text area, the user should be able to add or subtract them on input -->
-            <label>INSERT_INTRO_QUESTION<textarea id="VAR_INSERT_INTRO_QUESTION" rows="2" placeholder="INSERT_INTRO_QUESTION"></textarea></label>
-            
-            <label>INSERT_INTRO_EXAMPLE<textarea id="VAR_INSERT_INTRO_EXAMPLE" rows="2" placeholder="INSERT_INTRO_EXAMPLE"></textarea></label>
-            <label>INSERT_CTA_EXAMPLE<textarea id="VAR_INSERT_CTA_EXAMPLE" rows="2" placeholder="INSERT_CTA_EXAMPLE"></textarea></label>
-            
-            <label>INSERT_FAQ_QUESTIONS<textarea id="VAR_INSERT_FAQ_QUESTIONS" rows="3" placeholder="INSERT_FAQ_QUESTIONS"></textarea></label>
+            <label>
+              Title
+              <textarea id="VAR_TITLE" rows="1" placeholder="Enter blog title"></textarea>
+            </label>
 
-            <label>SOURCE<input id="VAR_SOURCE" type="text" placeholder="SOURCE" /></label>
-            <label>COMPANY_NAME<input id="VAR_COMPANY_NAME" type="text" placeholder="COMPANY_NAME" /></label>
-            <label>Company CALL_NUMBER<input id="VAR_CALL_NUMBER" type="text" placeholder="CALL_NUMBER" /></label>
-            <label>Company Address <input id="VAR_ADDRESS" type="text" placeholder="ADDRESS" /></label>
-            <label>STATE_NAME<input id="VAR_STATE_NAME" type="text" placeholder="STATE_NAME" /></label>
-            <label>LINK IN THE BLOG<input id="VAR_LINK" type="text" placeholder="LINK" /></label>
-            <label>Company Employee Example to Add: <input id="VAR_COMPANY_EMPLOYEE" type="text" placeholder="COMPANY_EMPLOYEE" /></label>
+            <label>
+              Intro Question
+              <textarea id="VAR_INSERT_INTRO_QUESTION" rows="1" placeholder="Question to introduce the topic"></textarea>
+            </label>
+
+            <label>
+              Company Name
+              <textarea id="VAR_COMPANY_NAME" rows="1" placeholder="Your company name"></textarea>
+            </label>
+
+            <label>
+              Phone Number
+              <textarea id="VAR_CALL_NUMBER" rows="1" placeholder="Contact number"></textarea>
+            </label>
+
+            <label>
+              Source
+              <textarea id="VAR_SOURCE" rows="5" placeholder="Content source or reference"></textarea>
+            </label>
+
+
+            <label>
+              Keywords
+              <textarea id="VAR_KEYWORDS" rows="5" placeholder="Enter keywords separated by commas">lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap</textarea>
+            </label>
+
+            
+            <label>
+              Intro Example
+              <textarea id="VAR_INSERT_INTRO_EXAMPLE" rows="5" placeholder="Example for introduction section"></textarea>
+            </label>
+
+            <label>
+              CTA Example
+              <textarea id="VAR_INSERT_CTA_EXAMPLE" rows="5" placeholder="Call-to-action example"></textarea>
+            </label>
+            
+
+            <label>
+              Address
+              <textarea id="VAR_ADDRESS" rows="1" placeholder="Business address"></textarea>
+            </label>
+
+            <label>
+              State Name
+              <textarea id="VAR_STATE_NAME" rows="1" placeholder="State or region"></textarea>
+            </label>
+
+            <label>
+              Link
+              <textarea id="VAR_LINK" rows="1" placeholder="https://example.com"></textarea>
+            </label>
+
+            <label>
+              Company Employee
+              <input id="VAR_COMPANY_EMPLOYEE" type="text" placeholder="Employee name or example to add to the blog" />
+            </label>
+            
+            <label>
+              FAQ Questions
+              <textarea id="VAR_INSERT_FAQ_QUESTIONS" rows="5" placeholder="Frequently asked questions"></textarea>
+            </label>
           </div>
 
           <div class="vars-actions">
@@ -84,7 +135,7 @@
             <div id="varsStatus" class="vars-status"></div>
           </div>
         </div>
-      </aside>
+      </section>
     </div>
 
     <script src="js/chatbot.js"></script>
