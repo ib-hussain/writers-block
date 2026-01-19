@@ -10,36 +10,36 @@ from flask import Flask, jsonify, request, redirect
 from psycopg2 import sql
 import psycopg2
 import psycopg2.extras
-from psycopg2.pool import SimpleConnectionPool, PoolError
+from psycopg2.pool import PoolError
+from data.database_postgres import get_db
+
 
 #==================================================================================================================================================
 # DEFINE CONSTANTS AND CONFIG
 DEBUGGING_MODE = True
 NULL_STRING = " "
-INTRO_MAX_TOKENS = "640"
-INTRO_MIN_TOKENS = "128"
-FINAL_CTA_MAX_TOKENS = "512"
-FINAL_CTA_MIN_TOKENS = "128"
-FAQ_MAX_TOKENS = "1024"
-FAQ_MIN_TOKENS = "512"
-BUISNESS_DESC_MAX_TOKENS = "1024"
-BUISNESS_DESC_MIN_TOKENS = "128"
-SHORT_CTA_MAX_TOKENS = "256"
-SHORT_CTA_MIN_TOKENS = "64"
-REFERENCES_MAX_TOKENS = "512"
-REFERENCES_MIN_TOKENS = "128"
-FULL_TEXT_MAX_TOKENS = "3584"
-FULL_TEXT_MIN_TOKENS = "1792"
+POOL_MIN = 1
+POOL_MAX = 10
+INTRO_MAX_TOKENS = 640
+INTRO_MIN_TOKENS = 128
+FINAL_CTA_MAX_TOKENS = 512
+FINAL_CTA_MIN_TOKENS = 128
+FAQ_MAX_TOKENS = 1024
+FAQ_MIN_TOKENS = 512
+BUISNESS_DESC_MAX_TOKENS = 1024
+BUISNESS_DESC_MIN_TOKENS = 128
+SHORT_CTA_MAX_TOKENS = 256
+SHORT_CTA_MIN_TOKENS = 64
+REFERENCES_MAX_TOKENS = 512
+REFERENCES_MIN_TOKENS = 128
+FULL_TEXT_MAX_TOKENS = 3584
+FULL_TEXT_MIN_TOKENS = 1792
 # ENV
 try:
     load_dotenv()
 except Exception:
     pass
-DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_KEY = os.getenv("SECRET_KEY")
-# Keep pool small in local dev; Supabase can also enforce limits.
-POOL_MIN = 1
-POOL_MAX = 10
 # USER INPUTS 
 ### PROMPT VARIABLES
 TITLE=""
@@ -64,43 +64,8 @@ app = Flask(
 )
 app.secret_key = SECRET_KEY
 # DB POOL
-# psycopg2's pool accepts kwargs for connect(). Use sslmode=require for Supabase.
-pool = SimpleConnectionPool(
-    minconn=POOL_MIN,
-    maxconn=POOL_MAX,
-    dsn=DATABASE_URL,
-    sslmode="require"
-    )
-@atexit.register
-def _close_pool():
-    try:
-        pool.closeall()
-    except Exception:
-        pass
-@contextmanager
-def db_conn():
-    """
-    Correct pattern for psycopg2 connection pools:
-    - borrow with getconn()
-    - ALWAYS return with putconn()
-    - rollback any open transaction state on return
-    """
-    conn = None
-    try:
-        conn = pool.getconn()
-        yield conn
-    finally:
-        if conn is not None:
-            try:
-                # ensure connection is clean for the next borrower
-                if conn.closed == 0:
-                    conn.rollback()
-            except Exception:
-                pass
-            try:
-                pool.putconn(conn)
-            except Exception:
-                pass
+db = get_db()
+
 # HELPERS(move them to another page later)
 def json_error(code: str, message: str, http_status: int = 500, **extra):
     payload = {"success": False, "code": code, "message": message}
@@ -146,82 +111,24 @@ def get_profilehistory_columns(conn) -> Tuple[str, str]:
 @app.route("/")
 def index():
     return redirect("/web_files/chatbot.html")
-@app.route("/databaseView")
-def database_view_page():
-    return redirect("/web_files/databaseView.html")
-@app.route("/profile")
-def profile_page():
-    return redirect("/web_files/profile.html")
 # API: TABLES
-@app.route("/api/db/tables")
-def api_db_tables():
-    limit = request.args.get("limit", default=200, type=int)
-    limit = clamp_int(limit, 1, 2000)
-    excluded = {"profilehistory"}  # exclude profileHistory by requirement
-    try:
-        with db_conn() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT tablename
-                    FROM pg_catalog.pg_tables
-                    WHERE schemaname = 'public'
-                    ORDER BY tablename ASC;
-                """)
-                table_names = [r["tablename"] for r in cur.fetchall()]
-                table_names = [t for t in table_names if t.lower() not in excluded]
-                tables_payload = []
-                for t in table_names:
-                    # Columns
-                    cur.execute("""
-                        SELECT column_name
-                        FROM information_schema.columns
-                        WHERE table_schema='public' AND table_name=%s
-                        ORDER BY ordinal_position;
-                    """, (t,))
-                    columns = [r["column_name"] for r in cur.fetchall()]
-                    # Total count
-                    cur.execute(f'SELECT COUNT(*) AS cnt FROM "{t}";')
-                    row_count = int(cur.fetchone()["cnt"])
-                    # Rows
-                    cur.execute(f'SELECT * FROM "{t}" ORDER BY 1 ASC LIMIT %s;', (limit,))
-                    rows = cur.fetchall()
-
-                    tables_payload.append({
-                        "name": t,
-                        "columns": columns,
-                        "row_count": row_count,
-                        "rows": rows
-                    })
-        return jsonify({"success": True, "tables": tables_payload}), 200
-    except PoolError as e:
-        return json_error(
-            "POOL_EXHAUSTED",
-            "DB connection pool exhausted. This indicates connections are not being returned correctly.",
-            500,
-            details=str(e),
-            hint="Ensure all DB access goes through db_conn() context manager."
-        )
-    except Exception as e:
-        return json_error("DB_TABLES_FAIL", "Failed to load tables.", 500, details=str(e))
 @app.route("/api/db/table/<table_name>")
 def api_db_table(table_name: str):
     """
-    Return a single table (safe identifier handling).
+    Return a single table (safe identifier handling) with FULL rows.
+
+    Performance notes:
+      - Avoid COUNT(*) (slow on large tables); use len(rows)
+      - Avoid ORDER BY unless you know an indexed key
     """
-    limit = request.args.get("limit", default=200, type=int)
-    limit = clamp_int(limit, 1, 2000)
-
-    # keep current rule: exclude profileHistory from general DB views
     excluded = {"profilehistory"}
-
     try:
         req = (table_name or "").strip()
         if not req:
             return json_error("MISSING_TABLE", "Missing table_name in URL path.", 400)
-
-        with db_conn() as conn:
+        with db.conn() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                # Build allowed table set from database (prevents injection + typos)
+                # Validate table name exists in public schema (prevents SQL injection via identifiers)
                 cur.execute("""
                     SELECT tablename
                     FROM pg_catalog.pg_tables
@@ -230,14 +137,11 @@ def api_db_table(table_name: str):
                 """)
                 allowed = [r["tablename"] for r in cur.fetchall()]
                 allowed_lc = {t.lower(): t for t in allowed}
-
                 if req.lower() in excluded:
                     return json_error("TABLE_EXCLUDED", "This table is excluded from DB views.", 403, table=req)
-
                 actual_name = allowed_lc.get(req.lower())
                 if not actual_name:
                     return json_error("UNKNOWN_TABLE", "Table not found.", 404, table=req, available=allowed)
-
                 # Columns
                 cur.execute("""
                     SELECT column_name
@@ -246,18 +150,16 @@ def api_db_table(table_name: str):
                     ORDER BY ordinal_position;
                 """, (actual_name,))
                 columns = [r["column_name"] for r in cur.fetchall()]
-                # Count + rows (identifier-safe)
+                # Full rows (no ORDER BY, no LIMIT)
                 tbl_ident = sql.Identifier(actual_name)
-                cur.execute(sql.SQL("SELECT COUNT(*) AS cnt FROM {}").format(tbl_ident))
-                row_count = int(cur.fetchone()["cnt"])
-                cur.execute(sql.SQL("SELECT * FROM {} ORDER BY 1 ASC LIMIT %s").format(tbl_ident), (limit,))
+                cur.execute(sql.SQL("SELECT * FROM {}").format(tbl_ident))
                 rows = cur.fetchall()
         return jsonify({
             "success": True,
             "table": {
                 "name": actual_name,
                 "columns": columns,
-                "row_count": row_count,
+                "row_count": len(rows),
                 "rows": rows
             }
         }), 200
@@ -270,7 +172,7 @@ def api_db_table(table_name: str):
 @app.route("/api/stats/tokens/month")
 def api_tokens_month():
     try:
-        with db_conn() as conn:
+        with db.conn() as conn:
             # detect correct profileHistory prompt/response columns
             user_col, resp_col = get_profilehistory_columns(conn)
 
@@ -333,7 +235,7 @@ def api_profile_history_by_date():
         return json_error("BAD_DATE_FORMAT", "Invalid date format. Use YYYY-MM-DD", 400, received=d)
 
     try:
-        with db_conn() as conn:
+        with db.conn() as conn:
             user_col, resp_col = get_profilehistory_columns(conn)
 
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -398,10 +300,10 @@ def handle_chat():
             return json_error("EMPTY_MESSAGE", "Message cannot be empty", 400)
         # Generate response (placeholder for now - integrate with your LLM)
         bot_response = f"Echo: {user_message}"
-        # issue: change the above
-        
+        # issue: change the above later and integrate with LLM model to get actual response but this is like this for testing right now
+        # issue: change the below later and this is like this for testing right now
         # # Store in database
-        # with db_conn() as conn:
+        # with db.conn() as conn:
         #     # Get correct column names
         #     user_col, resp_col = get_profilehistory_columns(conn)
             
