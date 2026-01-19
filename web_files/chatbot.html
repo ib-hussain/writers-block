@@ -1,42 +1,92 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <link rel="icon" type="image/png" href="pictures/favicon.png" />
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Writer's Block - GPT</title>
-        <link rel="stylesheet" href="css/chatbot.css" />
+  <head>
+    <link rel="icon" type="image/png" href="pictures/favicon.png" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Writer's Block - GPT</title>
+    <link rel="stylesheet" href="css/chatbot.css" />
+  </head>
 
-    </head>
-    <body>
-        <script src="js/navbar.js"></script>
-        <div class="chat-container">
-            <div class="chat-header">
-                <h2>Writing Assistant</h2>
-                <p>How can I help you today?</p>
-            </div>
-            <div class="chat-messages" id="chat-messages">
-                <div class="message bot-message">
-                    I'm your writing assistant. How can I help you today?
-                </div>
+  <body>
+    <script src="js/navbar.js"></script>
+
+    <div class="chat-shell">
+      <!-- Left: Chat -->
+      <div class="chat-container">
+        <div class="chat-header">
+          <div class="chat-header-row">
+            <div>
+              <h2>Writing Assistant</h2>
+              <p>How can I help you today?</p>
             </div>
 
-            <div class="chat-input">
-                <div class="chat-input-container">
-                    <form id="message-form">
-                        <textarea
-                            id="user-input"
-                            placeholder="Type your message here..."
-                            autocomplete="off"
-                            rows="1"></textarea>
-                        <!-- Send -->
-                        <button type="submit" class="send-btn" id="send-btn">
-                            <img src="pictures/paper-plane.png" alt="Send">
-                        </button>
-                    </form>
-                </div>
-            </div>
+            <button id="toggleVarsBtn" class="vars-toggle" type="button">
+              Prompt Variables
+            </button>
+          </div>
         </div>
-        <script src="js/chatbot.js"></script>
-    </body>
+
+        <div class="chat-messages" id="chat-messages">
+          <div class="message bot-message">
+            I'm your writing assistant. How can I help you today?
+          </div>
+        </div>
+
+        <div class="chat-input">
+          <div class="chat-input-container">
+            <form id="message-form">
+              <textarea
+                id="user-input"
+                placeholder="Type your message here..."
+                autocomplete="off"
+                rows="1"></textarea>
+
+              <button type="submit" class="send-btn" id="send-btn">
+                <img src="pictures/paper-plane.png" alt="Send" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Variables -->
+      <aside id="varsPanel" class="vars-panel" aria-hidden="true">
+        <div class="vars-head">
+          <div class="vars-title">Prompt Variables</div>
+          <button id="closeVarsBtn" class="vars-close" type="button">Close</button>
+        </div>
+
+        <div class="vars-body">
+          <div class="vars-grid">
+            <label>Title <input id="VAR_TITLE" type="text" placeholder="TITLE" /></label>
+            <label>Keywords <textarea id="VAR_KEYWORDS" rows="2" placeholder="KEYWORDS">lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap</textarea></label>
+            <!-- issue: i want the above keywords to appear in the text area, the user should be able to add or subtract them on input -->
+            <label>INSERT_INTRO_QUESTION<textarea id="VAR_INSERT_INTRO_QUESTION" rows="2" placeholder="INSERT_INTRO_QUESTION"></textarea></label>
+            
+            <label>INSERT_INTRO_EXAMPLE<textarea id="VAR_INSERT_INTRO_EXAMPLE" rows="2" placeholder="INSERT_INTRO_EXAMPLE"></textarea></label>
+            <label>INSERT_CTA_EXAMPLE<textarea id="VAR_INSERT_CTA_EXAMPLE" rows="2" placeholder="INSERT_CTA_EXAMPLE"></textarea></label>
+            
+            <label>INSERT_FAQ_QUESTIONS<textarea id="VAR_INSERT_FAQ_QUESTIONS" rows="3" placeholder="INSERT_FAQ_QUESTIONS"></textarea></label>
+
+            <label>SOURCE<input id="VAR_SOURCE" type="text" placeholder="SOURCE" /></label>
+            <label>COMPANY_NAME<input id="VAR_COMPANY_NAME" type="text" placeholder="COMPANY_NAME" /></label>
+            <label>Company CALL_NUMBER<input id="VAR_CALL_NUMBER" type="text" placeholder="CALL_NUMBER" /></label>
+            <label>Company Address <input id="VAR_ADDRESS" type="text" placeholder="ADDRESS" /></label>
+            <label>STATE_NAME<input id="VAR_STATE_NAME" type="text" placeholder="STATE_NAME" /></label>
+            <label>LINK IN THE BLOG<input id="VAR_LINK" type="text" placeholder="LINK" /></label>
+            <label>Company Employee Example to Add: <input id="VAR_COMPANY_EMPLOYEE" type="text" placeholder="COMPANY_EMPLOYEE" /></label>
+          </div>
+
+          <div class="vars-actions">
+            <button id="saveVarsBtn" class="vars-btn primary" type="button">Save</button>
+            <button id="resetVarsBtn" class="vars-btn" type="button">Reset</button>
+            <div id="varsStatus" class="vars-status"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <script src="js/chatbot.js"></script>
+  </body>
 </html>

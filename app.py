@@ -288,42 +288,55 @@ def handle_chat():
     """
     Handle chatbot messages.
     Stores user prompt and generated response in profileHistory.
-    Marks progress.chat as TRUE for today.
     """
     try:
-        # Parse request
-        data = request.get_json()
-        if not data:
-            return json_error("NO_DATA", "No JSON data provided", 400)
-        user_message = data.get('message', '').strip()
+        data = request.get_json(silent=True) or {}
+        user_message = (data.get("message") or "").strip()
+        vars_payload = data.get("vars") or {}
+
         if not user_message:
             return json_error("EMPTY_MESSAGE", "Message cannot be empty", 400)
-        # Generate response (placeholder for now - integrate with your LLM)
-        bot_response = f"Echo: {user_message}"
-        # issue: change the above later and integrate with LLM model to get actual response but this is like this for testing right now
-        # issue: change the below later and this is like this for testing right now
-        # # Store in database
-        # with db.conn() as conn:
-        #     # Get correct column names
-        #     user_col, resp_col = get_profilehistory_columns(conn)
-            
-        #     with conn.cursor() as cur:
-        #         # Insert into profileHistory
-        #         # Using parameterized query for safety
-        #         sql = f"""
-        #             INSERT INTO profileHistory (entry_date, entry, {user_col}, {resp_col})
-        #             VALUES (CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s)
-        #             RETURNING id;
-        #         """
-        #         cur.execute(sql, (user_message, bot_response))
-        #         inserted_id = cur.fetchone()[0]
-        #         conn.commit()
-        
-        # Return success with response
+
+        # --- Build a stable, explicit prompt block for future LLM integration ---
+        # Keep vars in a deterministic order so prompts are reproducible.
+        VAR_ORDER = [
+            "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION", 
+            "INSERT_INTRO_EXAMPLE", "INSERT_CTA_EXAMPLE",
+            # issue : make a condition cuh that if the "INSERT_INTRO_EXAMPLE", "INSERT_CTA_EXAMPLE" are empty then they need to be filled with "here is example" (this placeholder will be replaced with something else later)
+            "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
+            "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE"
+        ]
+        def _clean(v):
+            if v is None:
+                return ""
+            return str(v).strip()
+        vars_lines = []
+        for k in VAR_ORDER:
+            v = _clean(vars_payload.get(k, ""))
+            if v != "":
+                vars_lines.append(f"{k}: {v}")
+        vars_block = ""
+        if vars_lines:
+            vars_block = "PROMPT_VARIABLES:\n" + "\n".join(vars_lines) + "\n"
+
+        # This is what you will later pass to your LLM as user content or system+user prompt.
+        # For now, keep your placeholder response:
+        composed_user_prompt = f"{vars_block}{user_message}"
+        bot_response = f"Echo: {composed_user_prompt}"
+
+        # --- Persist to DB ---
+        with db.conn() as conn:
+            with conn.cursor() as cur:
+                insert_sql = f"""
+                    INSERT INTO profileHistory (id,entry_date, entry, userprompt, chatresponse)
+                    VALUES (3,CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s);
+                """
+                cur.execute(insert_sql, (composed_user_prompt, bot_response))
+                conn.commit()
+
         return jsonify({
             "success": True,
             "response": bot_response,
-            # "message_id": inserted_id,
             "timestamp": datetime.now().isoformat()
         }), 200
     except PoolError as e:
