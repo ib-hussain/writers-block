@@ -7,22 +7,55 @@ from contextlib import contextmanager
 from typing import Dict, Any, List, Optional, Tuple
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, redirect
+from psycopg2 import sql
 import psycopg2
 import psycopg2.extras
 from psycopg2.pool import SimpleConnectionPool, PoolError
 
+#==================================================================================================================================================
+# DEFINE CONSTANTS AND CONFIG
+DEBUGGING_MODE = True
+NULL_STRING = " "
+INTRO_MAX_TOKENS = "640"
+INTRO_MIN_TOKENS = "128"
+FINAL_CTA_MAX_TOKENS = "512"
+FINAL_CTA_MIN_TOKENS = "128"
+FAQ_MAX_TOKENS = "1024"
+FAQ_MIN_TOKENS = "512"
+BUISNESS_DESC_MAX_TOKENS = "1024"
+BUISNESS_DESC_MIN_TOKENS = "128"
+SHORT_CTA_MAX_TOKENS = "256"
+SHORT_CTA_MIN_TOKENS = "64"
+REFERENCES_MAX_TOKENS = "512"
+REFERENCES_MIN_TOKENS = "128"
+FULL_TEXT_MAX_TOKENS = "3584"
+FULL_TEXT_MIN_TOKENS = "1792"
 # ENV
 try:
     load_dotenv()
 except Exception:
     pass
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_KEY = os.getenv("SECRET_KEY")
-
-if not DATABASE_URL:
-    # Fail fast with a clear error rather than mysterious DB failures later.
-    raise RuntimeError("DATABASE_URL is not set. Put it in your .env file.")
+# Keep pool small in local dev; Supabase can also enforce limits.
+POOL_MIN = 1
+POOL_MAX = 10
+# USER INPUTS 
+### PROMPT VARIABLES
+TITLE=""
+KEYWORDS="lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap"
+INSERT_INTRO_QUESTION=""
+INSERT_INTRO_EXAMPLE=""
+INSERT_CTA_EXAMPLE=""
+INSERT_FAQ_QUESTIONS=""
+SOURCE=""
+COMPANY_NAME=""
+CALL_NUMBER=""
+ADDRESS=""  
+STATE_NAME=""
+LINK=""
+COMPANY_EMPLOYEE=""
+#==================================================================================================================================================
 # FLASK
 app = Flask(
     "Writers Block",
@@ -31,9 +64,6 @@ app = Flask(
 )
 app.secret_key = SECRET_KEY
 # DB POOL
-# Keep pool small in local dev; Supabase can also enforce limits.
-POOL_MIN = int(os.getenv("DB_POOL_MIN" ))
-POOL_MAX = int(os.getenv("DB_POOL_MAX"))
 # psycopg2's pool accepts kwargs for connect(). Use sslmode=require for Supabase.
 pool = SimpleConnectionPool(
     minconn=POOL_MIN,
@@ -71,7 +101,7 @@ def db_conn():
                 pool.putconn(conn)
             except Exception:
                 pass
-# HELPERS
+# HELPERS(move them to another page later)
 def json_error(code: str, message: str, http_status: int = 500, **extra):
     payload = {"success": False, "code": code, "message": message}
     if extra:
@@ -173,7 +203,70 @@ def api_db_tables():
         )
     except Exception as e:
         return json_error("DB_TABLES_FAIL", "Failed to load tables.", 500, details=str(e))
-# API: TOKENS (WORDS) PER DAY FOR CURRENT MONTH
+@app.route("/api/db/table/<table_name>")
+def api_db_table(table_name: str):
+    """
+    Return a single table (safe identifier handling).
+    """
+    limit = request.args.get("limit", default=200, type=int)
+    limit = clamp_int(limit, 1, 2000)
+
+    # keep current rule: exclude profileHistory from general DB views
+    excluded = {"profilehistory"}
+
+    try:
+        req = (table_name or "").strip()
+        if not req:
+            return json_error("MISSING_TABLE", "Missing table_name in URL path.", 400)
+
+        with db_conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Build allowed table set from database (prevents injection + typos)
+                cur.execute("""
+                    SELECT tablename
+                    FROM pg_catalog.pg_tables
+                    WHERE schemaname = 'public'
+                    ORDER BY tablename ASC;
+                """)
+                allowed = [r["tablename"] for r in cur.fetchall()]
+                allowed_lc = {t.lower(): t for t in allowed}
+
+                if req.lower() in excluded:
+                    return json_error("TABLE_EXCLUDED", "This table is excluded from DB views.", 403, table=req)
+
+                actual_name = allowed_lc.get(req.lower())
+                if not actual_name:
+                    return json_error("UNKNOWN_TABLE", "Table not found.", 404, table=req, available=allowed)
+
+                # Columns
+                cur.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema='public' AND table_name=%s
+                    ORDER BY ordinal_position;
+                """, (actual_name,))
+                columns = [r["column_name"] for r in cur.fetchall()]
+                # Count + rows (identifier-safe)
+                tbl_ident = sql.Identifier(actual_name)
+                cur.execute(sql.SQL("SELECT COUNT(*) AS cnt FROM {}").format(tbl_ident))
+                row_count = int(cur.fetchone()["cnt"])
+                cur.execute(sql.SQL("SELECT * FROM {} ORDER BY 1 ASC LIMIT %s").format(tbl_ident), (limit,))
+                rows = cur.fetchall()
+        return jsonify({
+            "success": True,
+            "table": {
+                "name": actual_name,
+                "columns": columns,
+                "row_count": row_count,
+                "rows": rows
+            }
+        }), 200
+    except PoolError as e:
+        return json_error("POOL_EXHAUSTED", "DB connection pool exhausted.", 500, details=str(e))
+    except Exception as e:
+        return json_error("DB_TABLE_FAIL", "Failed to load table.", 500, details=str(e))
+
+# API: TOKENS (WORDS) PER DAY FOR CURRENT MONTH STATS
 @app.route("/api/stats/tokens/month")
 def api_tokens_month():
     try:
@@ -288,7 +381,6 @@ def api_profile_history_by_date():
         return json_error("POOL_EXHAUSTED", "DB pool exhausted.", 500, details=str(e))
     except Exception as e:
         return json_error("PROFILE_HISTORY_FAIL", "Failed to load profile history.", 500, details=str(e))
-# Add these helper functions after your existing helper functions (after get_profilehistory_columns)
 @app.route('/api/chat', methods=['POST'])
 def handle_chat():
     """
@@ -340,4 +432,4 @@ def handle_chat():
 
 # MAIN (local dev)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000, debug=int(os.getenv("DEBUGGING_MODE" )))
+    app.run(host="0.0.0.0", port=10000, debug=DEBUGGING_MODE)

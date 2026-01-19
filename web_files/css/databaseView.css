@@ -34,7 +34,7 @@ body{
 }
 
 .pg-wrap{
-  max-width: 90%;
+  max-width: 100%;
   margin: 90px auto 40px;
   padding: 0 16px 40px;
 }

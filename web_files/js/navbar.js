@@ -37,10 +37,13 @@ document.addEventListener("DOMContentLoaded", function () {
         // Map file names to data-page values if they don't match
         const pageMap = {
             'chatbot': 'chatbot',
-            'databaseView': 'databaseView',
+            'databaseView': 'dbOverview',
+            'db_promptdata': 'dbPromptData',
+            'db_blogparts': 'dbBlogParts',
+            'db_progress': 'dbProgress',
             'profile': 'profile'
-            // Add more mappings as needed
         };
+
         return pageMap[page] || page;
     }
 });
