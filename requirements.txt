@@ -1,5 +1,2 @@
-datetime 
-contextlib 
-typing 
-flask
-psycopg2
+Flask
+psycopg2-binary
