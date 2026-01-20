@@ -36,7 +36,7 @@ body{
 /* ===== Main Shell Layout ===== */
 .chat-shell{
   width: 100%;
-  max-width: 1400px;
+  max-width: 95%;
   margin: 0 auto;
   padding: 20px;
   display: flex;
@@ -246,7 +246,7 @@ body{
   align-self: flex-start;
   background: #fff;
   color: var(--textColour);
-  max-width: 70%;
+  max-width: 25%;
   padding: 14px 18px;
   border-radius: 18px;
   border-bottom-left-radius: 6px;
