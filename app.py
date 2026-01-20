@@ -5,7 +5,7 @@ import atexit
 from datetime import datetime, date
 from contextlib import contextmanager
 from typing import Dict, Any, List, Optional, Tuple
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from flask import Flask, jsonify, request, redirect
 from psycopg2 import sql
 import psycopg2
@@ -37,11 +37,6 @@ FULL_TEXT_MIN_TOKENS = 1792
 # issue: change this to be more relevant 
 DEFAULT_INTRO_EXAMPLE = "For example, imagine you were involved in a car accident at a busy intersection..."
 DEFAULT_CTA_EXAMPLE = "Contact our experienced legal team today for a free consultation."
-# ENV
-try:
-    load_dotenv()
-except Exception:
-    pass
 SECRET_KEY = os.getenv("SECRET_KEY")
 # USER INPUTS 
 ### PROMPT VARIABLES (defaults - will be overridden by UI)

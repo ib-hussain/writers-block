@@ -1,7 +1,5 @@
-atexit
 datetime 
 contextlib 
 typing 
-dotenv 
 flask
 psycopg2
