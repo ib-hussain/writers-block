@@ -9,8 +9,14 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import PoolError
 
+# from chatbots.orchestrater import callAgents
 from data.database_postgres import get_db
 #==================================================================================================================================================
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
 # DEFINE CONSTANTS AND CONFIG
 DEBUGGING_MODE = True
 NULL_STRING = " "
@@ -30,11 +36,6 @@ REFERENCES_MAX_TOKENS = 512
 REFERENCES_MIN_TOKENS = 128
 FULL_TEXT_MAX_TOKENS = 3584
 FULL_TEXT_MIN_TOKENS = 1792
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except:
-    pass
 SECRET_KEY = os.getenv("SECRET_KEY")
 #==================================================================================================================================================
 # FLASK
@@ -46,6 +47,7 @@ app = Flask(
 app.secret_key = SECRET_KEY
 # DB POOL
 db = get_db()
+
 # HELPERS
 def json_error(code: str, message: str, http_status: int = 500, **extra):
     payload = {"success": False, "code": code, "message": message}
@@ -255,119 +257,195 @@ def api_profile_history_by_date():
 def handle_chat():
     """
     Handle chatbot messages.
-    Stores user prompt and generated response in profileHistory.
+    Retrieves variables from frontend, fetches blog examples from database,
+    and prepares prompts for LLM.
     """
     try:
-        # issue: change this so that the variables here are filled with there default values on the frontend and also accessible for the user to edit, 
-        # and the ones without any default value will be filled after being retrieved from the frontend
-        # USER INPUTS 
-        ### PROMPT VARIABLES (defaults - will be overridden by UI)
-        TITLE=""
-        KEYWORDS="lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap"
-        INSERT_INTRO_QUESTION=""
-        INSERT_FAQ_QUESTIONS=""
-        SOURCE=""
-        COMPANY_NAME=""
-        CALL_NUMBER=""
-        ADDRESS=""  
-        STATE_NAME=""
-        LINK=""
-        COMPANY_EMPLOYEE=""
-        BLOGFOREXAMPLE=""
-        # issue:
-        #  Retrival method: 
-        # There is a table in the database for this: blogdata
-        # Columns:  blogID, blogText 
-        BLOGPART_INTRO=""
-        BLOGPART_FINALCTA=""
-        BLOGPART_FAQS=""
-        BLOGPART_BUSINESSDESC=""
-        BLOGPART_SHORTCTA=""
-        # issue: once the numbers are retrieved, retrieve the appropriate examples from the database and combines them inside the above variables in the 
-        #        form of 
-        #        Example 1:
-        #        //        {example text}
-        #        Example 2:
-        #        //        {example text}
-        #  Retrival method: 
-        # There is a table in the database for this: blogparts
-        # Columns:  blogID,intro, final_cta, FAQs, business_description, integrate_references, short_cta
-        TEMPERATURE="0.70"
-        BLOGTYPE="Legal"
-        PROMPT_FULLBLOG=f""" We are writing a clear, SEO-optimised article titled “{TITLE}”. This article must directly answer each header in the very first sentence of each relevant section. Then, it should go into specific, well-researched, and helpful details.
-        You MUST use all of the following keywords naturally throughout the article:
-        “{KEYWORDS}”
-        * Use these keywords even when paraphrasing.
-        * Do not skip any keyword throughout the entire article.
-        * Use an active voice, and avoid passive voice unless absolutely necessary.
-        * Always keep sentences short or split them when needed.
-        * Use strong transitions.
-        * Support points with real-world facts, examples, or data.
-        * Each paragraph must begin with a direct, clear answer.
-        * The tone should be informative, direct, and easy to follow.
-        I have given the headers (outline sections). You will expand them with strong content, following these rules for the entire article.
-        This should be the example format: {BLOGFOREXAMPLE}"""
-        PROMPT_INTRO=f"""Write intro answering the question: {INSERT_INTRO_QUESTION}. Provide two paragraphs, each 60 words. The first paragraph must give a direct and relevant answer to the question, using short, active sentences, smooth transitions, and easy-to-follow language. The second paragraph must be a strong call to action, connected naturally to the topic. Write in the second person. Keep every sentence under 15 words for readability. Use a Flesch Reading Score–friendly style.
-        This should be the format: {BLOGPART_INTRO}"""
-        PROMPT_FINALCTA=f"""Write a two-paragraph call to action. Each paragraph must have 70 words. The first paragraph should explain the problems the reader faces based on the topic. The second paragraph should explain how we can help resolve those problems. In the second paragraph, you must use the name, phone number, and location given in the reference. Write in the second person, keep every sentence under 15 words, and use transition words for smooth flow. Keep the tone clear, active, and easy to follow for a high Flesch Reading Score.
-        This should be the format: {BLOGPART_FINALCTA}"""
-        PROMPT_FULLFAQS=f"""Answer the following FAQs clearly and directly, using the following formatting and content rules:
-        {INSERT_FAQ_QUESTIONS}
-        Each question should be formatted as an H4 with bold text and Title Case.
-        Seamlessly integrate the following keywords wherever relevant and natural: {KEYWORDS}
+        data = request.get_json(silent=True) or {}
+        user_message = (data.get("message") or "").strip()
+        vars_payload = data.get("vars") or {}
+        if not user_message: return json_error("EMPTY_MESSAGE", "Message cannot be empty", 400)
 
-        * Answer length should be between 60 to 70 words.
-        * Begin with a direct answer (e.g., “Yes,” or “No,” if applicable), followed by a clear explanation.
-        * Use an active voice throughout.
-        * Use strong transitions between ideas and connect sentences smoothly.
-        * If a sentence becomes long, break it using a short, clear transition or supporting sentence.
-        * Do not include fluff or filler. Every sentence must add value and connect logically.
-        * Make the tone informative and easy to follow without oversimplifying medical or legal terms.
-        * Avoid sudden info dumps; flow should be natural and progressive.
-        * Make sure no sentence or idea feels out of place or rushed.
-        * Use real medical and legal insight where needed, and avoid vague or generic statements.
-        * Do not overuse any keyword or repeat the same idea unnecessarily.
-        * All the sentences should only answer the question, no other irrelevant info.
-        This should be the format: {BLOGPART_FAQS}"""
-        PROMPT_BUSINESSDESC=f""" Write a business description based on the title: {TITLE}. Start with a direct 70-word opening paragraph that answers the question clearly. Then, include six bullet points in the middle, each 15 words long, highlighting symptoms, risks, steps, legal options or key details connected to the topic. After the bullets, write a closing 70-word paragraph explaining how we can help. Use second person, active voice, and short sentences under 15 words. Add smooth transitions for flow and ensure a high Flesch Reading Score.
-        This is an example: {BLOGPART_BUSINESSDESC}"""
-        PROMPT_REFERENCES=f""" When integrating references, only use credible, trustworthy sources such as government sites, universities, medical journals, legal journals, or recognized organizations. Do not use competitors or promotional sources. Introduce the reference naturally with phrases like ‘According to {SOURCE}’ or ‘A study by {SOURCE} found…’. Keep sentences short, active, and easy to follow. Use references to support key points, not overwhelm the reader. Include at least 3–4 references throughout the blog, but use more if needed for accuracy. At the end, provide the full source in a consistent format.
-        This should be the format:
-            For Legal Blogs:
-                1. According to NIH research, anxiety and traumatic stress symptoms are common after a car crash. In a study of 62 hospitalized patients, 55% reported moderate to severe anxiety.
-                2. For instance, a case study on NCBI revealed that a 27-year-old woman developed severe neurological problems after a side-impact car accident. Despite regular CT scans, an MRI later showed severe C1/C2 joint damage.
-            For Health Blogs:
-                1. According to NIH, vibration therapy (VT) improves neuromuscular performance by increasing strength, power, and kinesthetic awareness. According to PubMed, smoking increases the risk of cartilage loss. By avoiding smoking, you protect your cartilage, allowing tissues to heal better and respond more effectively to exercises.For instance, a case study on NCBI revealed that a 27-year-old woman developed severe neurological problems after a side-impact car accident. Despite regular CT scans, an MRI later showed severe C1/C2 joint damage.
-                2. According to the NIH, a review of 26 studies showed that past lower extremity injuries raise the risk of reinjury. These studies showed that previous anterior cruciate ligament tears often lead to repeated ACL injuries or other leg problems. Moreover, hamstring strains increase the chance of another hamstring injury. According to PubMed, cryotherapy (ice therapy)may help reduce severe knee pain in patients with knee osteoarthritis. A systematic review of five RCTs found a significant decrease in knee pain. According to BMC, 141 out of 215 patients participated in a second opinion for knee arthroplasty. During this program, knee surgeons reassessed diagnoses and recommended surgery for 40% of patients after checking them in person. After the second opinion, 41% of patients chose surgery, 25% decided against it, and 25% remained unsure.
-                """
-        PROMPT_SHORTCTA=f"""Write a short 2–3 line call to action that directly connects to the problems discussed in the section. Emphasize how our doctors or lawyers can help the reader manage those challenges. Keep sentences short, active, and easy to follow. Avoid using our name, phone number, or location. Only use phrases like contact us or reach out to us naturally within the text.
-        This should be the format: {BLOGPART_SHORTCTA}"""
-        # issue: i just want all the variables to be edited by the user and also contain the retrieved text from the above variables before being sent as a prompt to the LLM
+        # Extract all variables from frontend
+        TITLE = vars_payload.get("TITLE", "").strip()
+        KEYWORDS = vars_payload.get("KEYWORDS", "").strip()
+        INSERT_INTRO_QUESTION = vars_payload.get("INSERT_INTRO_QUESTION", "").strip()
+        INSERT_FAQ_QUESTIONS = vars_payload.get("INSERT_FAQ_QUESTIONS", "").strip()
+        SOURCE = vars_payload.get("SOURCE", "").strip()
+        COMPANY_NAME = vars_payload.get("COMPANY_NAME", "").strip()
+        CALL_NUMBER = vars_payload.get("CALL_NUMBER", "").strip()
+        ADDRESS = vars_payload.get("ADDRESS", "").strip()
+        STATE_NAME = vars_payload.get("STATE_NAME", "").strip()
+        LINK = vars_payload.get("LINK", "").strip()
+        COMPANY_EMPLOYEE = vars_payload.get("COMPANY_EMPLOYEE", "").strip()
+        
+        BLOGTYPE = vars_payload.get("BLOGTYPE", "Legal").strip()
+        TEMPERATURE = vars_payload.get("TEMPERATURE", "0.70").strip()
+        
+        # Blog example IDs (arrays)
+        BLOGFOREXAMPLE_IDS = vars_payload.get("BLOGFOREXAMPLE", [])
+        BLOGPART_INTRO_IDS = vars_payload.get("BLOGPART_INTRO", [])
+        BLOGPART_FINALCTA_IDS = vars_payload.get("BLOGPART_FINALCTA", [])
+        BLOGPART_FAQS_IDS = vars_payload.get("BLOGPART_FAQS", [])
+        BLOGPART_BUSINESSDESC_IDS = vars_payload.get("BLOGPART_BUSINESSDESC", [])
+        BLOGPART_SHORTCTA_IDS = vars_payload.get("BLOGPART_SHORTCTA", [])
+        
+        # User-editable prompts (will be pre-filled with defaults but can be edited)
+        PROMPT_FULLBLOG = vars_payload.get("PROMPT_FULLBLOG", "").strip()
+        PROMPT_INTRO = vars_payload.get("PROMPT_INTRO", "").strip()
+        PROMPT_FINALCTA = vars_payload.get("PROMPT_FINALCTA", "").strip()
+        PROMPT_FULLFAQS = vars_payload.get("PROMPT_FULLFAQS", "").strip()
+        PROMPT_BUSINESSDESC = vars_payload.get("PROMPT_BUSINESSDESC", "").strip()
+        PROMPT_REFERENCES = vars_payload.get("PROMPT_REFERENCES", "").strip()
+        PROMPT_SHORTCTA = vars_payload.get("PROMPT_SHORTCTA", "").strip()
 
+        # --- Fetch blog examples from database ---
+        def fetch_blog_examples(blog_ids, table_name="blogdata", id_column="blogID", text_column="blogText"):
+            """
+            Fetch blog examples from database and format them.
+            Returns formatted string: "Example 1:\n{text}\n\nExample 2:\n{text}..."
+            """
+            if not blog_ids or len(blog_ids) == 0:
+                return ""
+            try:
+                with db.conn() as conn:
+                    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                        # Safely build query with placeholders
+                        placeholders = ','.join(['%s'] * len(blog_ids))
+                        query = f"""
+                            SELECT {id_column}, {text_column}
+                            FROM {table_name}
+                            WHERE {id_column} = ANY(%s)
+                            ORDER BY {id_column};
+                        """
+                        cur.execute(query, (blog_ids,))
+                        results = cur.fetchall()
+                        
+                        # Format results
+                        examples = []
+                        for idx, row in enumerate(results, 1):
+                            text = row.get(text_column, "")
+                            examples.append(f"Example {idx}:\n{text}")
+                        return "\n\n".join(examples)
+            except Exception as e:
+                app.logger.error(f"Error fetching blog examples: {e}")
+                return ""
+        def fetch_blog_part_examples(part_ids, column_name):
+            """
+            Fetch specific blog part examples from blogparts table.
+            column_name: 'intro', 'final_cta', 'FAQs', 'business_description', 'short_cta'
+            """
+            if not part_ids or len(part_ids) == 0:
+                return ""
+            try:
+                with db.conn() as conn:
+                    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                        query = f"""
+                            SELECT blogID, {column_name}
+                            FROM blogparts
+                            WHERE blogID = ANY(%s)
+                            ORDER BY blogID;
+                        """
+                        cur.execute(query, (part_ids,))
+                        results = cur.fetchall()
+                        
+                        # Format results
+                        examples = []
+                        for idx, row in enumerate(results, 1):
+                            text = row.get(column_name, "")
+                            examples.append(f"Example {idx}:\n{text}")
+                        return "\n\n".join(examples)
+            except Exception as e:
+                app.logger.error(f"Error fetching blog part examples: {e}")
+                return ""
+        
+        # Fetch all examples from database
+        BLOGFOREXAMPLE = fetch_blog_examples(BLOGFOREXAMPLE_IDS)
+        BLOGPART_INTRO = fetch_blog_part_examples(BLOGPART_INTRO_IDS, "intro")
+        BLOGPART_FINALCTA = fetch_blog_part_examples(BLOGPART_FINALCTA_IDS, "final_cta")
+        BLOGPART_FAQS = fetch_blog_part_examples(BLOGPART_FAQS_IDS, "FAQs")
+        BLOGPART_BUSINESSDESC = fetch_blog_part_examples(BLOGPART_BUSINESSDESC_IDS, "business_description")
+        BLOGPART_SHORTCTA = fetch_blog_part_examples(BLOGPART_SHORTCTA_IDS, "short_cta")
 
-        # --- Build prompt with variables ---
-        VAR_ORDER = []
+        # --- Replace placeholders in prompts ---
+        def replace_vars(prompt_text):
+            """Replace {VARIABLE} placeholders with actual values"""
+            replacements = {
+                "{TITLE}": TITLE,
+                "{KEYWORDS}": KEYWORDS,
+                "{INSERT_INTRO_QUESTION}": INSERT_INTRO_QUESTION,
+                "{INSERT_FAQ_QUESTIONS}": INSERT_FAQ_QUESTIONS,
+                "{SOURCE}": SOURCE,
+                "{BLOGFOREXAMPLE}": BLOGFOREXAMPLE,
+                "{BLOGPART_INTRO}": BLOGPART_INTRO,
+                "{BLOGPART_FINALCTA}": BLOGPART_FINALCTA,
+                "{BLOGPART_FAQS}": BLOGPART_FAQS,
+                "{BLOGPART_BUSINESSDESC}": BLOGPART_BUSINESSDESC,
+                "{BLOGPART_SHORTCTA}": BLOGPART_SHORTCTA
+            }
+            
+            result = prompt_text
+            for placeholder, value in replacements.items():
+                result = result.replace(placeholder, value)
+            return result
 
-        # issue: Replace this with actual imported function from 
-        # chatbots.callAgents(PROMPT_FULLBLOG,PROMPT_INTRO,PROMPT_FINALCTA,PROMPT_FULLFAQS,PROMPT_BUSINESSDESC,PROMPT_REFERENCES, PROMPT_SHORTCTA,TEMPERATURE ) 
-        # with LLM API call, for now, using echo response
-        bot_response = f"Echo: Nothing"
+        # Replace placeholders in all prompts
+        PROMPT_FULLBLOG_FINAL = replace_vars(PROMPT_FULLBLOG)
+        PROMPT_INTRO_FINAL = replace_vars(PROMPT_INTRO)
+        PROMPT_FINALCTA_FINAL = replace_vars(PROMPT_FINALCTA)
+        PROMPT_FULLFAQS_FINAL = replace_vars(PROMPT_FULLFAQS)
+        PROMPT_BUSINESSDESC_FINAL = replace_vars(PROMPT_BUSINESSDESC)
+        PROMPT_REFERENCES_FINAL = replace_vars(PROMPT_REFERENCES)
+        PROMPT_SHORTCTA_FINAL = replace_vars(PROMPT_SHORTCTA)
 
-        # --- Persist to DB ---
-        # with db.conn() as conn:
-        #     with conn.cursor() as cur:
-        #         insert_sql = f"""
-        #             INSERT INTO profileHistory (id,entry_date, entry, userprompt, chatresponse)
-        #             VALUES (3,CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s);
-        #         """
-        #         cur.execute(insert_sql, (composed_user_prompt, bot_response))
-        #         conn.commit()
-        # issue: this need not be here but in the chatbot.py file due to the fact that each agent will send its own prompt and bot response
+        # --- Call LLM agents ---
+        # TODO: Replace with actual LLM function
+        # from chatbots import callAgents
+        # bot_response = callAgents(
+        #     COMPANY_NAME,
+        #     CALL_NUMBER,
+        #     ADDRESS,
+        #     STATE_NAME,
+        #     LINK,
+        #     COMPANY_EMPLOYEE,
+        #     PROMPT_FULLBLOG_FINAL,
+        #     PROMPT_INTRO_FINAL,
+        #     PROMPT_FINALCTA_FINAL,
+        #     PROMPT_FULLFAQS_FINAL,
+        #     PROMPT_BUSINESSDESC_FINAL,
+        #     PROMPT_REFERENCES_FINAL,
+        #     PROMPT_SHORTCTA_FINAL,
+        #     TEMPERATURE
+        # )
+        # For now, echo response for testing
+        bot_response = f"""Generated blog content using:
+            - Blog Type: {BLOGTYPE}
+            - Temperature: {TEMPERATURE}
+            - Title: {TITLE}
+            - Examples fetched: {len(BLOGFOREXAMPLE_IDS)} full blogs, {len(BLOGPART_INTRO_IDS)} intro parts
+            - User message: {user_message}
+
+            Prompts are ready to be sent to LLM agents."""
+
+        # Note: Database persistence will be handled by chatbots.py as mentioned
+        # Each agent will send its own prompt and bot response to profileHistory
 
         return jsonify({
             "success": True,
             "response": bot_response,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "debug_info": {
+                "blog_type": BLOGTYPE,
+                "temperature": TEMPERATURE,
+                "examples_fetched": {
+                    "full_blogs": len(BLOGFOREXAMPLE_IDS),
+                    "intro_parts": len(BLOGPART_INTRO_IDS),
+                    "finalcta_parts": len(BLOGPART_FINALCTA_IDS),
+                    "faqs_parts": len(BLOGPART_FAQS_IDS),
+                    "businessdesc_parts": len(BLOGPART_BUSINESSDESC_IDS),
+                    "shortcta_parts": len(BLOGPART_SHORTCTA_IDS)
+                }
+            }
         }), 200
         
     except PoolError as e:
@@ -378,7 +456,6 @@ def handle_chat():
     except Exception as e:
         app.logger.error(f"Chat endpoint error: {e}")
         return json_error("CHAT_FAILED", "Failed to process chat message", 500, details=str(e))
-
 # MAIN (local dev)
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=DEBUGGING_MODE)

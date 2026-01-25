@@ -71,36 +71,6 @@
         </div>
 
         <div class="vars-body">
-          <!-- Blog Type -->
-          <div class="vars-section">
-            <h4 class="vars-section-title">Blog Type</h4>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" name="blogType" value="Legal" id="VAR_BLOGTYPE_LEGAL" checked />
-                <span>Legal</span>
-              </label>
-              <label class="radio-label">
-                <input type="radio" name="blogType" value="Health" id="VAR_BLOGTYPE_HEALTH" />
-                <span>Health</span>
-              </label>
-            </div>
-          </div>
-          <!-- Temperature -->
-          <div class="vars-section">
-            <h4 class="vars-section-title">Temperature</h4>
-            <p class="vars-helper-text">
-            <!-- Choose overall randomness of the AI Model<br> -->
-            Low temperatures (<0.50) produce conservative, deterministic, and accurate responses<br>
-            High temperatures (>0.50) encourage creative, diverse, and potentially inaccurate (hallucinated) outputs.</p>
-            <div class="slider-container">
-              <input type="range" id="VAR_TEMPERATURE" min="0" max="100" value="70" class="slider" />
-              <div class="slider-labels">
-                <span>0.00</span>
-                <span id="temperatureValue" class="slider-value">0.70</span>
-                <span>1.00</span>
-              </div>
-            </div>
-          </div>
           <!-- Basic Variables -->
           <div class="vars-section">
             <h4 class="vars-section-title">Basic Information</h4>
@@ -147,6 +117,20 @@
             </div>
           </div>
 
+          <!-- Blog Type -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Blog Type</h4>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="blogType" value="Legal" id="VAR_BLOGTYPE_LEGAL" checked />
+                <span>Legal</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="blogType" value="Health" id="VAR_BLOGTYPE_HEALTH" />
+                <span>Health</span>
+              </label>
+            </div>
+          </div>
 
           <!-- Blog For Example -->
           <div class="vars-section">
@@ -157,6 +141,18 @@
             </div>
           </div>
 
+          <!-- Temperature -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Temperature</h4>
+            <div class="slider-container">
+              <input type="range" id="VAR_TEMPERATURE" min="0" max="100" value="70" class="slider" />
+              <div class="slider-labels">
+                <span>0.00</span>
+                <span id="temperatureValue" class="slider-value">0.70</span>
+                <span>1.00</span>
+              </div>
+            </div>
+          </div>
 
           <!-- Blog Part For Example -->
           <div class="vars-section">
@@ -202,7 +198,9 @@
 
               <label>
                 Keywords
-                <textarea id="VAR_KEYWORDS" rows="5" placeholder="Enter keywords separated by commas">lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap</textarea>
+                <textarea id="VAR_KEYWORDS" rows="5" placeholder="Enter keywords separated by commas">
+                  <!-- lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap -->
+                </textarea>
               </label>
 
               <label>
@@ -218,37 +216,37 @@
             <div class="vars-grid">
               <label>
                 Full Blog Prompt
-                <textarea id="VAR_PROMPT_FULLBLOG" rows="6" placeholder="Prompt for generating full blog">abcd</textarea>
+                <textarea id="VAR_PROMPT_FULLBLOG" rows="6" placeholder="Prompt for generating full blog"></textarea>
               </label>
 
               <label>
                 Intro Prompt
-                <textarea id="VAR_PROMPT_INTRO" rows="6" placeholder="Prompt for introduction section">abcd</textarea>
+                <textarea id="VAR_PROMPT_INTRO" rows="6" placeholder="Prompt for introduction section"></textarea>
               </label>
 
               <label>
                 Final CTA Prompt
-                <textarea id="VAR_PROMPT_FINALCTA" rows="6" placeholder="Prompt for final call-to-action">abcd</textarea>
+                <textarea id="VAR_PROMPT_FINALCTA" rows="6" placeholder="Prompt for final call-to-action"></textarea>
               </label>
 
               <label>
                 Full FAQs Prompt
-                <textarea id="VAR_PROMPT_FULLFAQS" rows="6" placeholder="Prompt for FAQ section">abcd</textarea>
+                <textarea id="VAR_PROMPT_FULLFAQS" rows="6" placeholder="Prompt for FAQ section"></textarea>
               </label>
 
               <label>
                 Business Description Prompt
-                <textarea id="VAR_PROMPT_BUSINESSDESC" rows="6" placeholder="Prompt for business description">abcd</textarea>
+                <textarea id="VAR_PROMPT_BUSINESSDESC" rows="6" placeholder="Prompt for business description"></textarea>
               </label>
 
               <label>
                 References Prompt
-                <textarea id="VAR_PROMPT_REFERENCES" rows="6" placeholder="Prompt for references section">abcd</textarea>
+                <textarea id="VAR_PROMPT_REFERENCES" rows="6" placeholder="Prompt for references section"></textarea>
               </label>
 
               <label>
                 Short CTA Prompt
-                <textarea id="VAR_PROMPT_SHORTCTA" rows="6" placeholder="Prompt for short call-to-action">abcd</textarea>
+                <textarea id="VAR_PROMPT_SHORTCTA" rows="6" placeholder="Prompt for short call-to-action"></textarea>
               </label>
             </div>
           </div>

@@ -28,7 +28,66 @@
     "BLOGPART_FINALCTA": [],
     "BLOGPART_FAQS": [],
     "BLOGPART_BUSINESSDESC": [],
-    "BLOGPART_SHORTCTA": []
+    "BLOGPART_SHORTCTA": [],
+    "PROMPT_FULLBLOG": `We are writing a clear, SEO-optimised article titled "{TITLE}". This article must directly answer each header in the very first sentence of each relevant section. Then, it should go into specific, well-researched, and helpful details.
+
+You MUST use all of the following keywords naturally throughout the article:
+"{KEYWORDS}"
+
+* Use these keywords even when paraphrasing.
+* Do not skip any keyword throughout the entire article.
+* Use an active voice, and avoid passive voice unless absolutely necessary.
+* Always keep sentences short or split them when needed.
+* Use strong transitions.
+* Support points with real-world facts, examples, or data.
+* Each paragraph must begin with a direct, clear answer.
+* The tone should be informative, direct, and easy to follow.
+
+I have given the headers (outline sections). You will expand them with strong content, following these rules for the entire article.
+
+This should be the example format: {BLOGFOREXAMPLE}`,
+    "PROMPT_INTRO": `Write intro answering the question: {INSERT_INTRO_QUESTION}. Provide two paragraphs, each 60 words. The first paragraph must give a direct and relevant answer to the question, using short, active sentences, smooth transitions, and easy-to-follow language. The second paragraph must be a strong call to action, connected naturally to the topic. Write in the second person. Keep every sentence under 15 words for readability. Use a Flesch Reading Score–friendly style.
+
+This should be the format: {BLOGPART_INTRO}`,
+    "PROMPT_FINALCTA": `Write a two-paragraph call to action. Each paragraph must have 70 words. The first paragraph should explain the problems the reader faces based on the topic. The second paragraph should explain how we can help resolve those problems. In the second paragraph, you must use the name, phone number, and location given in the reference. Write in the second person, keep every sentence under 15 words, and use transition words for smooth flow. Keep the tone clear, active, and easy to follow for a high Flesch Reading Score.
+
+This should be the format: {BLOGPART_FINALCTA}`,
+    "PROMPT_FULLFAQS": `Answer the following FAQs clearly and directly, using the following formatting and content rules:
+{INSERT_FAQ_QUESTIONS}
+
+Each question should be formatted as an H4 with bold text and Title Case.
+Seamlessly integrate the following keywords wherever relevant and natural: {KEYWORDS}
+
+* Answer length should be between 60 to 70 words.
+* Begin with a direct answer (e.g., "Yes," or "No," if applicable), followed by a clear explanation.
+* Use an active voice throughout.
+* Use strong transitions between ideas and connect sentences smoothly.
+* If a sentence becomes long, break it using a short, clear transition or supporting sentence.
+* Do not include fluff or filler. Every sentence must add value and connect logically.
+* Make the tone informative and easy to follow without oversimplifying medical or legal terms.
+* Avoid sudden info dumps; flow should be natural and progressive.
+* Make sure no sentence or idea feels out of place or rushed.
+* Use real medical and legal insight where needed, and avoid vague or generic statements.
+* Do not overuse any keyword or repeat the same idea unnecessarily.
+* All the sentences should only answer the question, no other irrelevant info.
+
+This should be the format: {BLOGPART_FAQS}`,
+    "PROMPT_BUSINESSDESC": `Write a business description based on the title: {TITLE}. Start with a direct 70-word opening paragraph that answers the question clearly. Then, include six bullet points in the middle, each 15 words long, highlighting symptoms, risks, steps, legal options or key details connected to the topic. After the bullets, write a closing 70-word paragraph explaining how we can help. Use second person, active voice, and short sentences under 15 words. Add smooth transitions for flow and ensure a high Flesch Reading Score.
+
+This is an example: {BLOGPART_BUSINESSDESC}`,
+    "PROMPT_REFERENCES": `When integrating references, only use credible, trustworthy sources such as government sites, universities, medical journals, legal journals, or recognized organizations. Do not use competitors or promotional sources. Introduce the reference naturally with phrases like 'According to {SOURCE}' or 'A study by {SOURCE} found…'. Keep sentences short, active, and easy to follow. Use references to support key points, not overwhelm the reader. Include at least 3–4 references throughout the blog, but use more if needed for accuracy. At the end, provide the full source in a consistent format.
+
+This should be the format:
+For Legal Blogs:
+1. According to NIH research, anxiety and traumatic stress symptoms are common after a car crash. In a study of 62 hospitalized patients, 55% reported moderate to severe anxiety.
+2. For instance, a case study on NCBI revealed that a 27-year-old woman developed severe neurological problems after a side-impact car accident. Despite regular CT scans, an MRI later showed severe C1/C2 joint damage.
+
+For Health Blogs:
+1. According to NIH, vibration therapy (VT) improves neuromuscular performance by increasing strength, power, and kinesthetic awareness. According to PubMed, smoking increases the risk of cartilage loss. By avoiding smoking, you protect your cartilage, allowing tissues to heal better and respond more effectively to exercises.
+2. According to the NIH, a review of 26 studies showed that past lower extremity injuries raise the risk of reinjury. These studies showed that previous anterior cruciate ligament tears often lead to repeated ACL injuries or other leg problems.`,
+    "PROMPT_SHORTCTA": `Write a short 2–3 line call to action that directly connects to the problems discussed in the section. Emphasize how our doctors or lawyers can help the reader manage those challenges. Keep sentences short, active, and easy to follow. Avoid using our name, phone number, or location. Only use phrases like contact us or reach out to us naturally within the text.
+
+This should be the format: {BLOGPART_SHORTCTA}`
   };
 
   const LS_KEY = "wb_prompt_vars_v1";
@@ -111,10 +170,8 @@
     const container = document.getElementById("blogForExampleContainer");
     container.innerHTML = "";
 
-    const start = blogType === "Legal" ? 1 : 11;
-    const end = blogType === "Legal" ? 10 : 20;
-
-    for (let i = start; i <= end; i++) {
+    // Always use 1-10 for both Legal and Health
+    for (let i = 1; i <= 10; i++) {
       const label = document.createElement("label");
       label.className = "checkbox-label";
       label.innerHTML = `
