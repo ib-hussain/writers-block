@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import psycopg2
 import psycopg2.extras
 from psycopg2.pool import SimpleConnectionPool, PoolError
+from datetime import datetime, date
+from flask import jsonify
 
 # DEFINE CONSTANTS AND CONFIG
 DEBUGGING_MODE = True
@@ -99,3 +101,38 @@ def get_db() -> DB:
     if _db is None:
         return init_db()
     return _db
+# HELPERS
+def json_error(code: str, message: str, http_status: int = 500, **extra):
+    payload = {"success": False, "code": code, "message": message}
+    if extra:
+        payload.update(extra)
+    return jsonify(payload), http_status
+def clamp_int(v: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, v))
+def parse_yyyy_mm_dd(s: str) -> date:
+    return datetime.strptime(s, "%Y-%m-%d").date()
+def get_profilehistory_columns(conn) -> Tuple[str, str]:
+    """
+    Detect actual column names in profilehistory table.
+    """
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema='public'
+              AND table_name='profilehistory'
+            ORDER BY ordinal_position;
+        """)
+        cols = [r["column_name"] for r in cur.fetchall()]
+        colset = set(cols)
+
+        if "Userprompt" in colset and "chatResponse" in colset:
+            return '"Userprompt"', '"chatResponse"'
+
+        if "userprompt" in colset and "chatresponse" in colset:
+            return "userprompt", "chatresponse"
+
+        raise RuntimeError(
+            f"profileHistory columns not found. Present columns: {cols}. "
+            f"Expected either (Userprompt, chatResponse) or (userprompt, chatresponse)."
+        )

@@ -9,8 +9,8 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import PoolError
 
-# from chatbots.orchestrater import callAgents
-from data.database_postgres import get_db
+from chatbots.orchestrater import callAgents
+from data.database_postgres import get_db, json_error, parse_yyyy_mm_dd, get_profilehistory_columns
 #==================================================================================================================================================
 try:
     from dotenv import load_dotenv
@@ -47,42 +47,6 @@ app = Flask(
 app.secret_key = SECRET_KEY
 # DB POOL
 db = get_db()
-
-# HELPERS
-def json_error(code: str, message: str, http_status: int = 500, **extra):
-    payload = {"success": False, "code": code, "message": message}
-    if extra:
-        payload.update(extra)
-    return jsonify(payload), http_status
-def clamp_int(v: int, lo: int, hi: int) -> int:
-    return max(lo, min(hi, v))
-def parse_yyyy_mm_dd(s: str) -> date:
-    return datetime.strptime(s, "%Y-%m-%d").date()
-def get_profilehistory_columns(conn) -> Tuple[str, str]:
-    """
-    Detect actual column names in profilehistory table.
-    """
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute("""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema='public'
-              AND table_name='profilehistory'
-            ORDER BY ordinal_position;
-        """)
-        cols = [r["column_name"] for r in cur.fetchall()]
-        colset = set(cols)
-
-        if "Userprompt" in colset and "chatResponse" in colset:
-            return '"Userprompt"', '"chatResponse"'
-
-        if "userprompt" in colset and "chatresponse" in colset:
-            return "userprompt", "chatresponse"
-
-        raise RuntimeError(
-            f"profileHistory columns not found. Present columns: {cols}. "
-            f"Expected either (Userprompt, chatResponse) or (userprompt, chatresponse)."
-        )
 # BASIC PAGES
 @app.route("/")
 def index():
@@ -399,38 +363,25 @@ def handle_chat():
         PROMPT_SHORTCTA_FINAL = replace_vars(PROMPT_SHORTCTA)
 
         # --- Call LLM agents ---
-        # TODO: Replace with actual LLM function
-        # from chatbots import callAgents
-        # bot_response = callAgents(
-        #     user_message,
-        #     COMPANY_NAME,
-        #     CALL_NUMBER,
-        #     ADDRESS,
-        #     STATE_NAME,
-        #     LINK,
-        #     COMPANY_EMPLOYEE,
-        #     PROMPT_FULLBLOG_FINAL,
-        #     PROMPT_INTRO_FINAL,
-        #     PROMPT_FINALCTA_FINAL,
-        #     PROMPT_FULLFAQS_FINAL,
-        #     PROMPT_BUSINESSDESC_FINAL,
-        #     PROMPT_REFERENCES_FINAL,
-        #     PROMPT_SHORTCTA_FINAL,
-        #     TEMPERATURE
-        # )
-        # For now, echo response for testing
-        bot_response = f"""Generated blog content using:
-            - Blog Type: {BLOGTYPE}
-            - Temperature: {TEMPERATURE}
-            - Title: {TITLE}
-            - Examples fetched: {len(BLOGFOREXAMPLE_IDS)} full blogs, {len(BLOGPART_INTRO_IDS)} intro parts
-            - User message: {user_message}
-
-            Prompts are ready to be sent to LLM agents."""
-
+        bot_response = callAgents(
+            user_message,
+            COMPANY_NAME,
+            CALL_NUMBER,
+            ADDRESS,
+            STATE_NAME,
+            LINK,
+            COMPANY_EMPLOYEE,
+            PROMPT_FULLBLOG_FINAL,
+            PROMPT_INTRO_FINAL,
+            PROMPT_FINALCTA_FINAL,
+            PROMPT_FULLFAQS_FINAL,
+            PROMPT_BUSINESSDESC_FINAL,
+            PROMPT_REFERENCES_FINAL,
+            PROMPT_SHORTCTA_FINAL,
+            TEMPERATURE
+        )
         # Note: Database persistence will be handled by chatbots.py as mentioned
         # Each agent will send its own prompt and bot response to profileHistory
-
         return jsonify({
             "success": True,
             "response": bot_response,
@@ -448,7 +399,6 @@ def handle_chat():
                 }
             }
         }), 200
-        
     except PoolError as e:
         return json_error("POOL_EXHAUSTED", "Database connection pool exhausted", 500, details=str(e))
     except psycopg2.Error as e:

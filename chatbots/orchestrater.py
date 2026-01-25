@@ -3,11 +3,32 @@ from typing import Dict, Tuple
 from datetime import datetime
 import time
 
-from chatbots.diet import (Intro_Writing_Agent, Final_CTA_Agent, 
+from chatbots.SingularAgents import (Intro_Writing_Agent, Final_CTA_Agent, 
                            FAQs_Writing_Agent, Business_Description_Agent, 
-                           References_Writing_Agent, Short_CTA_Agent, Full_Blog_Writer)
+                           References_Writing_Agent, Short_CTA_Agent)
+from chatbots.FullAgents import Full_Blog_Writer
 from data.database_postgres import get_db 
+# DEFINE CONSTANTS AND CONFIG
+DEBUGGING_MODE = True
+NULL_STRING = " "
+POOL_MIN = 1
+POOL_MAX = 10
+INTRO_MAX_TOKENS = 640
+INTRO_MIN_TOKENS = 128
+FINAL_CTA_MAX_TOKENS = 512
+FINAL_CTA_MIN_TOKENS = 128
+FAQ_MAX_TOKENS = 1024
+FAQ_MIN_TOKENS = 512
+BUISNESS_DESC_MAX_TOKENS = 1024
+BUISNESS_DESC_MIN_TOKENS = 128
+SHORT_CTA_MAX_TOKENS = 256
+SHORT_CTA_MIN_TOKENS = 64
+REFERENCES_MAX_TOKENS = 512
+REFERENCES_MIN_TOKENS = 128
+FULL_TEXT_MAX_TOKENS = 3584
+FULL_TEXT_MIN_TOKENS = 1792
 db = get_db()
+
 class OrchestratorError(Exception):
     pass
 def write_profile_history(userprompt: str, chatresponse: str):

@@ -1,4 +1,24 @@
 from typing import Dict, Tuple
+
+# DEFINE CONSTANTS AND CONFIG
+DEBUGGING_MODE = True
+NULL_STRING = " "
+POOL_MIN = 1
+POOL_MAX = 10
+INTRO_MAX_TOKENS = 640
+INTRO_MIN_TOKENS = 128
+FINAL_CTA_MAX_TOKENS = 512
+FINAL_CTA_MIN_TOKENS = 128
+FAQ_MAX_TOKENS = 1024
+FAQ_MIN_TOKENS = 512
+BUISNESS_DESC_MAX_TOKENS = 1024
+BUISNESS_DESC_MIN_TOKENS = 128
+SHORT_CTA_MAX_TOKENS = 256
+SHORT_CTA_MIN_TOKENS = 64
+REFERENCES_MAX_TOKENS = 512
+REFERENCES_MIN_TOKENS = 128
+FULL_TEXT_MAX_TOKENS = 3584
+FULL_TEXT_MIN_TOKENS = 1792
     # ---------- Agent calls (PURE, NO DB) ----------
 
 def Intro_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
@@ -12,6 +32,4 @@ def Business_Description_Agent(prompt: str, temperature: float) -> Tuple[str, st
 def References_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
         return prompt, llm.generate(prompt, temperature)
 def Short_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-        return prompt, llm.generate(prompt, temperature)
-def Full_Blog_Writer(prompt: str, temperature: float) -> Tuple[str, str]:
         return prompt, llm.generate(prompt, temperature)
