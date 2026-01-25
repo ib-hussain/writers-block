@@ -170,8 +170,11 @@ This should be the format: {BLOGPART_SHORTCTA}`
     const container = document.getElementById("blogForExampleContainer");
     container.innerHTML = "";
 
-    // Always use 1-10 for both Legal and Health
-    for (let i = 1; i <= 10; i++) {
+    // Legal: 11-20, Health: 1-10
+    const start = blogType === "Legal" ? 11 : 1;
+    const end = blogType === "Legal" ? 20 : 10;
+
+    for (let i = start; i <= end; i++) {
       const label = document.createElement("label");
       label.className = "checkbox-label";
       label.innerHTML = `
@@ -201,7 +204,12 @@ This should be the format: {BLOGPART_SHORTCTA}`
 
   // Initialize blog part checkboxes
   function initBlogPartCheckboxes() {
+    const blogType = document.querySelector('input[name="blogType"]:checked')?.value || "Legal";
     const sections = ['Intro', 'FinalCTA', 'FAQs', 'BusinessDesc', 'ShortCTA'];
+    
+    // Legal: 11-20, Health: 1-10
+    const start = blogType === "Legal" ? 11 : 1;
+    const end = blogType === "Legal" ? 20 : 10;
     
     sections.forEach(section => {
       const container = document.getElementById(`example${section}`);
@@ -209,7 +217,7 @@ This should be the format: {BLOGPART_SHORTCTA}`
       
       container.innerHTML = "";
 
-      for (let i = 1; i <= 10; i++) {
+      for (let i = start; i <= end; i++) {
         const label = document.createElement("label");
         label.className = "checkbox-label";
         label.innerHTML = `
@@ -520,7 +528,9 @@ This should be the format: {BLOGPART_SHORTCTA}`
     // Blog type change handler
     document.querySelectorAll('input[name="blogType"]').forEach(radio => {
       radio.addEventListener('change', () => {
+        // Reinitialize both Full Blog Examples AND Blog Part Examples
         initBlogForExampleCheckboxes();
+        initBlogPartCheckboxes();
       });
     });
 
