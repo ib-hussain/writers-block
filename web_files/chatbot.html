@@ -11,6 +11,18 @@
   <body>
     <script src="js/navbar.js"></script>
 
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden" aria-hidden="true">
+      <div class="loading-card">
+        <div class="typing-dots">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+        <p class="loading-text">Loading chat history...</p>
+      </div>
+    </div>
+
     <div class="chat-shell">
       <!-- Main Chat Container -->
       <div class="chat-container">
@@ -59,76 +71,189 @@
         </div>
 
         <div class="vars-body">
-          <div class="vars-grid">
-            <label>
-              Title
-              <textarea id="VAR_TITLE" rows="1" placeholder="Enter blog title"></textarea>
-            </label>
+          <!-- Blog Type -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Blog Type</h4>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="blogType" value="Legal" id="VAR_BLOGTYPE_LEGAL" checked />
+                <span>Legal</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="blogType" value="Health" id="VAR_BLOGTYPE_HEALTH" />
+                <span>Health</span>
+              </label>
+            </div>
+          </div>
+          <!-- Temperature -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Temperature</h4>
+            <p class="vars-helper-text">
+            <!-- Choose overall randomness of the AI Model<br> -->
+            Low temperatures (<0.50) produce conservative, deterministic, and accurate responses<br>
+            High temperatures (>0.50) encourage creative, diverse, and potentially inaccurate (hallucinated) outputs.</p>
+            <div class="slider-container">
+              <input type="range" id="VAR_TEMPERATURE" min="0" max="100" value="70" class="slider" />
+              <div class="slider-labels">
+                <span>0.00</span>
+                <span id="temperatureValue" class="slider-value">0.70</span>
+                <span>1.00</span>
+              </div>
+            </div>
+          </div>
+          <!-- Basic Variables -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Basic Information</h4>
+            <div class="vars-grid">
+              <label>
+                Title
+                <textarea id="VAR_TITLE" rows="1" placeholder="Enter blog title"></textarea>
+              </label>
 
-            <label>
-              Intro Question
-              <textarea id="VAR_INSERT_INTRO_QUESTION" rows="1" placeholder="Question to introduce the topic"></textarea>
-            </label>
+              <label>
+                Intro Question
+                <textarea id="VAR_INSERT_INTRO_QUESTION" rows="1" placeholder="Question to introduce the topic"></textarea>
+              </label>
 
-            <label>
-              Company Name
-              <textarea id="VAR_COMPANY_NAME" rows="1" placeholder="Your company name"></textarea>
-            </label>
+              <label>
+                Company Name
+                <textarea id="VAR_COMPANY_NAME" rows="1" placeholder="Your company name"></textarea>
+              </label>
 
-            <label>
-              Phone Number
-              <textarea id="VAR_CALL_NUMBER" rows="1" placeholder="Contact number"></textarea>
-            </label>
+              <label>
+                Phone Number
+                <textarea id="VAR_CALL_NUMBER" rows="1" placeholder="Contact number"></textarea>
+              </label>
 
-            <label>
-              Source
-              <textarea id="VAR_SOURCE" rows="5" placeholder="Content source or reference"></textarea>
-            </label>
+              <label>
+                Address
+                <textarea id="VAR_ADDRESS" rows="1" placeholder="Business address"></textarea>
+              </label>
 
+              <label>
+                State Name
+                <textarea id="VAR_STATE_NAME" rows="1" placeholder="State or region"></textarea>
+              </label>
 
-            <label>
-              Keywords
-              <textarea id="VAR_KEYWORDS" rows="5" placeholder="Enter keywords separated by commas">lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap</textarea>
-            </label>
+              <label>
+                Link
+                <textarea id="VAR_LINK" rows="1" placeholder="https://example.com"></textarea>
+              </label>
 
-            
-            <label>
-              Intro Example
-              <textarea id="VAR_INSERT_INTRO_EXAMPLE" rows="5" placeholder="Example for introduction section"></textarea>
-            </label>
-
-            <label>
-              CTA Example
-              <textarea id="VAR_INSERT_CTA_EXAMPLE" rows="5" placeholder="Call-to-action example"></textarea>
-            </label>
-            
-
-            <label>
-              Address
-              <textarea id="VAR_ADDRESS" rows="1" placeholder="Business address"></textarea>
-            </label>
-
-            <label>
-              State Name
-              <textarea id="VAR_STATE_NAME" rows="1" placeholder="State or region"></textarea>
-            </label>
-
-            <label>
-              Link
-              <textarea id="VAR_LINK" rows="1" placeholder="https://example.com"></textarea>
-            </label>
-
-            <label>
-              Company Employee
-              <input id="VAR_COMPANY_EMPLOYEE" type="text" placeholder="Employee name or example to add to the blog" />
-            </label>
-            
-            <label>
-              FAQ Questions
-              <textarea id="VAR_INSERT_FAQ_QUESTIONS" rows="5" placeholder="Frequently asked questions"></textarea>
-            </label>
+              <label>
+                Company Employee
+                <textarea id="VAR_COMPANY_EMPLOYEE" rows="1" placeholder="Employee name or example"></textarea>
+              </label>
+            </div>
           </div>
 
+
+          <!-- Blog For Example -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Blog Examples to Use</h4>
+            <p class="vars-helper-text">Select up to 10 example blogs to reference</p>
+            <div class="checkbox-grid" id="blogForExampleContainer">
+              <!-- Checkboxes 1-10 or 11-20 will be populated by JS -->
+            </div>
+          </div>
+
+
+          <!-- Blog Part For Example -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Blog Part Examples</h4>
+            <p class="vars-helper-text">Select example blogs for each section (up to 10 per section)</p>
+            
+            <div class="blog-part-sections">
+              <div class="blog-part-item">
+                <h5>Intro</h5>
+                <div class="checkbox-grid-small" id="exampleIntro"></div>
+              </div>
+
+              <div class="blog-part-item">
+                <h5>Final CTA</h5>
+                <div class="checkbox-grid-small" id="exampleFinalCTA"></div>
+              </div>
+
+              <div class="blog-part-item">
+                <h5>FAQs</h5>
+                <div class="checkbox-grid-small" id="exampleFAQs"></div>
+              </div>
+
+              <div class="blog-part-item">
+                <h5>Business Description</h5>
+                <div class="checkbox-grid-small" id="exampleBusinessDesc"></div>
+              </div>
+
+              <div class="blog-part-item">
+                <h5>Short CTA</h5>
+                <div class="checkbox-grid-small" id="exampleShortCTA"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Source & Keywords -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Source & Keywords</h4>
+            <div class="vars-grid">
+              <label>
+                Source
+                <textarea id="VAR_SOURCE" rows="5" placeholder="Content source or reference"></textarea>
+              </label>
+
+              <label>
+                Keywords
+                <textarea id="VAR_KEYWORDS" rows="5" placeholder="Enter keywords separated by commas">lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap</textarea>
+              </label>
+
+              <label>
+                FAQ Questions
+                <textarea id="VAR_INSERT_FAQ_QUESTIONS" rows="5" placeholder="Frequently asked questions"></textarea>
+              </label>
+            </div>
+          </div>
+
+          <!-- Prompts -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Prompts</h4>
+            <div class="vars-grid">
+              <label>
+                Full Blog Prompt
+                <textarea id="VAR_PROMPT_FULLBLOG" rows="6" placeholder="Prompt for generating full blog">abcd</textarea>
+              </label>
+
+              <label>
+                Intro Prompt
+                <textarea id="VAR_PROMPT_INTRO" rows="6" placeholder="Prompt for introduction section">abcd</textarea>
+              </label>
+
+              <label>
+                Final CTA Prompt
+                <textarea id="VAR_PROMPT_FINALCTA" rows="6" placeholder="Prompt for final call-to-action">abcd</textarea>
+              </label>
+
+              <label>
+                Full FAQs Prompt
+                <textarea id="VAR_PROMPT_FULLFAQS" rows="6" placeholder="Prompt for FAQ section">abcd</textarea>
+              </label>
+
+              <label>
+                Business Description Prompt
+                <textarea id="VAR_PROMPT_BUSINESSDESC" rows="6" placeholder="Prompt for business description">abcd</textarea>
+              </label>
+
+              <label>
+                References Prompt
+                <textarea id="VAR_PROMPT_REFERENCES" rows="6" placeholder="Prompt for references section">abcd</textarea>
+              </label>
+
+              <label>
+                Short CTA Prompt
+                <textarea id="VAR_PROMPT_SHORTCTA" rows="6" placeholder="Prompt for short call-to-action">abcd</textarea>
+              </label>
+            </div>
+          </div>
+
+          <!-- Actions -->
           <div class="vars-actions">
             <button id="saveVarsBtn" class="vars-btn primary" type="button">Save</button>
             <button id="resetVarsBtn" class="vars-btn" type="button">Reset</button>

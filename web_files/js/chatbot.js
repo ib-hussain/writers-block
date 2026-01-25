@@ -1,4 +1,7 @@
 (() => {
+  const overlay = document.getElementById("loadingOverlay");
+  const reloadBtn = document.getElementById("reloadBtn");
+
   let chatMessages, messageForm, userInput, sendBtn;
   let varsPanel, varsToggleHeader, saveVarsBtn, resetVarsBtn, varsStatus;
 
@@ -6,17 +9,39 @@
 
   const VAR_KEYS = [
     "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION", 
-    "INSERT_INTRO_EXAMPLE", "INSERT_CTA_EXAMPLE",
     "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
-    "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE"
+    "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE",
+    "BLOGTYPE", "BLOGFOREXAMPLE", "TEMPERATURE",
+    "BLOGPART_INTRO", "BLOGPART_FINALCTA", "BLOGPART_FAQS", 
+    "BLOGPART_BUSINESSDESC", "BLOGPART_SHORTCTA",
+    "PROMPT_FULLBLOG", "PROMPT_INTRO", "PROMPT_FINALCTA",
+    "PROMPT_FULLFAQS", "PROMPT_BUSINESSDESC", "PROMPT_REFERENCES", "PROMPT_SHORTCTA"
   ];
 
   // Default values for variables
   const DEFAULT_VALUES = {
-    "KEYWORDS": "lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap"
+    "KEYWORDS": "lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap",
+    "BLOGTYPE": "Legal",
+    "TEMPERATURE": "0.70",
+    "BLOGFOREXAMPLE": [],
+    "BLOGPART_INTRO": [],
+    "BLOGPART_FINALCTA": [],
+    "BLOGPART_FAQS": [],
+    "BLOGPART_BUSINESSDESC": [],
+    "BLOGPART_SHORTCTA": []
   };
 
   const LS_KEY = "wb_prompt_vars_v1";
+
+  function showLoading() {
+    overlay.classList.remove("hidden");
+    overlay.setAttribute("aria-hidden", "false");
+  }
+  
+  function hideLoading() {
+    overlay.classList.add("hidden");
+    overlay.setAttribute("aria-hidden", "true");
+  }
 
   function escapeHtml(str) {
     return String(str ?? "")
@@ -80,32 +105,222 @@
     varsPanel.classList.toggle("collapsed");
   }
 
+  // Initialize checkboxes based on blog type
+  function initBlogForExampleCheckboxes() {
+    const blogType = document.querySelector('input[name="blogType"]:checked')?.value || "Legal";
+    const container = document.getElementById("blogForExampleContainer");
+    container.innerHTML = "";
+
+    const start = blogType === "Legal" ? 1 : 11;
+    const end = blogType === "Legal" ? 10 : 20;
+
+    for (let i = start; i <= end; i++) {
+      const label = document.createElement("label");
+      label.className = "checkbox-label";
+      label.innerHTML = `
+        <input type="checkbox" name="blogForExample" value="${i}" />
+        <span>Blog ${i}</span>
+      `;
+      container.appendChild(label);
+
+      // Add change listener to enforce 10 max
+      const checkbox = label.querySelector('input');
+      checkbox.addEventListener('change', () => {
+        handleCheckboxLimit('blogForExample', 10);
+        updateCheckboxStyles('blogForExample');
+      });
+    }
+
+    // Restore saved values
+    const saved = loadVars();
+    if (saved && saved.BLOGFOREXAMPLE) {
+      saved.BLOGFOREXAMPLE.forEach(val => {
+        const cb = container.querySelector(`input[value="${val}"]`);
+        if (cb) cb.checked = true;
+      });
+    }
+    updateCheckboxStyles('blogForExample');
+  }
+
+  // Initialize blog part checkboxes
+  function initBlogPartCheckboxes() {
+    const sections = ['Intro', 'FinalCTA', 'FAQs', 'BusinessDesc', 'ShortCTA'];
+    
+    sections.forEach(section => {
+      const container = document.getElementById(`example${section}`);
+      if (!container) return;
+      
+      container.innerHTML = "";
+
+      for (let i = 1; i <= 10; i++) {
+        const label = document.createElement("label");
+        label.className = "checkbox-label";
+        label.innerHTML = `
+          <input type="checkbox" name="blogPart${section}" value="${i}" />
+          <span>${i}</span>
+        `;
+        container.appendChild(label);
+
+        // Add change listener to enforce 10 max
+        const checkbox = label.querySelector('input');
+        checkbox.addEventListener('change', () => {
+          handleCheckboxLimit(`blogPart${section}`, 10);
+          updateCheckboxStyles(`blogPart${section}`);
+        });
+      }
+    });
+
+    // Restore saved values
+    const saved = loadVars();
+    if (saved) {
+      sections.forEach(section => {
+        const key = `BLOGPART_${section.toUpperCase()}`;
+        if (saved[key]) {
+          saved[key].forEach(val => {
+            const cb = document.querySelector(`input[name="blogPart${section}"][value="${val}"]`);
+            if (cb) cb.checked = true;
+          });
+        }
+        updateCheckboxStyles(`blogPart${section}`);
+      });
+    }
+  }
+
+  // Handle checkbox limit (max selections)
+  function handleCheckboxLimit(name, max) {
+    const checkboxes = document.querySelectorAll(`input[name="${name}"]`);
+    const checked = Array.from(checkboxes).filter(cb => cb.checked);
+    
+    if (checked.length > max) {
+      // Uncheck the last checked one
+      checked[checked.length - 1].checked = false;
+    }
+  }
+
+  // Update checkbox visual styles
+  function updateCheckboxStyles(name) {
+    const checkboxes = document.querySelectorAll(`input[name="${name}"]`);
+    checkboxes.forEach(cb => {
+      const label = cb.closest('.checkbox-label');
+      if (cb.checked) {
+        label.classList.add('checked');
+      } else {
+        label.classList.remove('checked');
+      }
+    });
+  }
+
+  // Temperature slider
+  function initTemperatureSlider() {
+    const slider = document.getElementById('VAR_TEMPERATURE');
+    const valueDisplay = document.getElementById('temperatureValue');
+    
+    if (!slider || !valueDisplay) return;
+
+    slider.addEventListener('input', (e) => {
+      const value = (parseInt(e.target.value) / 100).toFixed(2);
+      valueDisplay.textContent = value;
+    });
+
+    // Set initial value
+    const saved = loadVars();
+    if (saved && saved.TEMPERATURE) {
+      const percent = Math.round(parseFloat(saved.TEMPERATURE) * 100);
+      slider.value = percent;
+      valueDisplay.textContent = saved.TEMPERATURE;
+    }
+  }
+
   function getVarsFromUI() {
     const out = {};
-    for (const k of VAR_KEYS) {
+    
+    // Text inputs and textareas
+    const simpleKeys = [
+      "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION", 
+      "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
+      "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE",
+      "PROMPT_FULLBLOG", "PROMPT_INTRO", "PROMPT_FINALCTA",
+      "PROMPT_FULLFAQS", "PROMPT_BUSINESSDESC", "PROMPT_REFERENCES", "PROMPT_SHORTCTA"
+    ];
+    
+    simpleKeys.forEach(k => {
       const el = document.getElementById(`VAR_${k}`);
       out[k] = (el ? el.value : "").trim();
+    });
+
+    // Blog type (radio)
+    const blogTypeRadio = document.querySelector('input[name="blogType"]:checked');
+    out.BLOGTYPE = blogTypeRadio ? blogTypeRadio.value : "Legal";
+
+    // Temperature
+    const tempSlider = document.getElementById('VAR_TEMPERATURE');
+    if (tempSlider) {
+      out.TEMPERATURE = (parseInt(tempSlider.value) / 100).toFixed(2);
     }
+
+    // Blog for example (checkboxes)
+    const blogForExample = Array.from(document.querySelectorAll('input[name="blogForExample"]:checked'))
+      .map(cb => cb.value);
+    out.BLOGFOREXAMPLE = blogForExample;
+
+    // Blog part checkboxes
+    const sections = ['Intro', 'FinalCTA', 'FAQs', 'BusinessDesc', 'ShortCTA'];
+    sections.forEach(section => {
+      const checked = Array.from(document.querySelectorAll(`input[name="blogPart${section}"]:checked`))
+        .map(cb => cb.value);
+      out[`BLOGPART_${section.toUpperCase()}`] = checked;
+    });
+
     return out;
   }
 
   function setVarsToUI(varsObj) {
-    for (const k of VAR_KEYS) {
+    // Text inputs and textareas
+    const simpleKeys = [
+      "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION", 
+      "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
+      "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE",
+      "PROMPT_FULLBLOG", "PROMPT_INTRO", "PROMPT_FINALCTA",
+      "PROMPT_FULLFAQS", "PROMPT_BUSINESSDESC", "PROMPT_REFERENCES", "PROMPT_SHORTCTA"
+    ];
+    
+    simpleKeys.forEach(k => {
       const el = document.getElementById(`VAR_${k}`);
       if (el) {
-        // Priority: saved value > default value > empty
         const value = varsObj?.[k] !== undefined && varsObj?.[k] !== "" 
           ? varsObj[k] 
           : (DEFAULT_VALUES[k] || "");
         el.value = value;
       }
+    });
+
+    // Blog type
+    const blogType = varsObj?.BLOGTYPE || DEFAULT_VALUES.BLOGTYPE;
+    const radioEl = blogType === "Health" 
+      ? document.getElementById('VAR_BLOGTYPE_HEALTH')
+      : document.getElementById('VAR_BLOGTYPE_LEGAL');
+    if (radioEl) radioEl.checked = true;
+
+    // Reinitialize checkboxes based on blog type
+    initBlogForExampleCheckboxes();
+    initBlogPartCheckboxes();
+
+    // Temperature
+    const temp = varsObj?.TEMPERATURE || DEFAULT_VALUES.TEMPERATURE;
+    const tempSlider = document.getElementById('VAR_TEMPERATURE');
+    const tempValue = document.getElementById('temperatureValue');
+    if (tempSlider) {
+      tempSlider.value = Math.round(parseFloat(temp) * 100);
+    }
+    if (tempValue) {
+      tempValue.textContent = temp;
     }
   }
 
   function loadVars() {
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (!raw) return null; // Return null if nothing saved yet
+      if (!raw) return null;
       const parsed = JSON.parse(raw);
       return (parsed && typeof parsed === "object") ? parsed : null;
     } catch {
@@ -126,8 +341,8 @@
   }
 
   async function loadChatHistoryForToday() {
+    showLoading();
     const today = todayYYYYMMDD();
-    const typing = addTypingIndicator();
 
     try {
       const res = await fetch(`/api/profile/history?date=${encodeURIComponent(today)}`);
@@ -151,12 +366,11 @@
       chatMessages.innerHTML = "";
       addMessage("Error loading chat history. Starting fresh session.", "bot-message");
     } finally {
-      typing.remove();
+      hideLoading();
     }
   }
 
   function extractUserMessage(fullPrompt) {
-    // Extract just the user message, removing PROMPT_VARIABLES block
     const lines = fullPrompt.split('\n');
     const varStartIndex = lines.findIndex(line => line.trim() === 'PROMPT_VARIABLES:');
     
@@ -164,11 +378,9 @@
       return fullPrompt.trim();
     }
     
-    // Find where variables end (look for line that doesn't contain ":")
     let messageStartIndex = varStartIndex + 1;
     for (let i = varStartIndex + 1; i < lines.length; i++) {
       const line = lines[i].trim();
-      // Empty line or line without ":" indicates end of variables
       if (line === "" || (!line.includes(':') && line.length > 0)) {
         messageStartIndex = i;
         break;
@@ -237,16 +449,23 @@
 
     if (!chatMessages || !messageForm || !userInput || !sendBtn) {
       console.error("Chatbot DOM elements not found. Check chatbot.html IDs.");
+      hideLoading();
       return;
     }
 
     userInput.addEventListener("input", autoResize);
     messageForm.addEventListener("submit", handleSubmit);
 
-    // Toggle panel on header click
     if (varsToggleHeader && varsPanel) {
       varsToggleHeader.addEventListener("click", toggleVarsPanel);
     }
+
+    // Blog type change handler
+    document.querySelectorAll('input[name="blogType"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        initBlogForExampleCheckboxes();
+      });
+    });
 
     if (saveVarsBtn) {
       saveVarsBtn.addEventListener("click", () => {
@@ -259,33 +478,30 @@
     if (resetVarsBtn) {
       resetVarsBtn.addEventListener("click", () => {
         if (confirm("Are you sure you want to reset all variables to default values?")) {
-          const defaults = {};
-          for (const k of VAR_KEYS) {
-            defaults[k] = DEFAULT_VALUES[k] || "";
-          }
-          setVarsToUI(defaults);
-          saveVars(defaults);
+          setVarsToUI(DEFAULT_VALUES);
+          saveVars(DEFAULT_VALUES);
           setStatus("✓ Reset to defaults");
         }
       });
     }
 
+    // Initialize all components
+    initBlogForExampleCheckboxes();
+    initBlogPartCheckboxes();
+    initTemperatureSlider();
+
     // Load saved vars OR set defaults if first time
     const savedVars = loadVars();
     if (savedVars === null) {
-      // First time - use defaults
       setVarsToUI(DEFAULT_VALUES);
-      // Save defaults to localStorage so keywords persist
       saveVars(DEFAULT_VALUES);
     } else {
-      // Load saved values (will use defaults for any missing values)
       setVarsToUI(savedVars);
     }
 
     autoResize();
     userInput.focus();
 
-    // Load today's persisted chat
     loadChatHistoryForToday();
   });
 })();
