@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS BlogParts (
 
 -- 1) Ensure Progress exists with better defaults
 CREATE TABLE IF NOT EXISTS progress (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL,
     entry_date DATE NOT NULL DEFAULT (CURRENT_DATE),
     entry TIMESTAMPTZ NOT NULL,
     writing BOOLEAN DEFAULT FALSE,
