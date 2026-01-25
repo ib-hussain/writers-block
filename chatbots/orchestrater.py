@@ -80,7 +80,7 @@ def callAgents(
     PROMPT_SHORTCTA_FINAL: str,
     TEMPERATURE: float = 0.7
     ) -> str:
-    
+    return "API INTEGRATION PENDING"
     write_progress()
     start = time.time()
     agent_map = {
