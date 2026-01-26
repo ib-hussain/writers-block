@@ -78,8 +78,7 @@ def callAgents(
     PROMPT_BUSINESSDESC_FINAL: str,
     PROMPT_REFERENCES_FINAL: str,
     PROMPT_SHORTCTA_FINAL: str,
-    TEMPERATURE: float = 0.7
-    ) -> str:
+    TEMPERATURE: float = 0.7 ) -> str:
     return "API INTEGRATION PENDING"
     write_progress()
     start = time.time()
@@ -110,21 +109,21 @@ def callAgents(
                 raise OrchestratorError(f"Agent failed ({progress_col}): {e}")
     # ---- Final writer (sequential) ----
     # issue: fix this bullshit
-    full_prompt = PROMPT_FULLBLOG_FINAL.format(
-        INTRO=agent_results["intro"],
-        FINAL_CTA=agent_results["final_cta"],
-        FAQ=agent_results["faqs"],
-        Buisness_DESCRIPTION=agent_results["business_description"],
-        SHORT_CTA=agent_results["short_cta"],
-        REFERENCES=agent_results["integrate_references"],
-        COMPANY_NAME=COMPANY_NAME,
-        CALL_NUMBER=CALL_NUMBER,
-        ADDRESS=ADDRESS,
-        STATE_NAME=STATE_NAME,
-        LINK=LINK,
-        COMPANY_EMPLOYEE=COMPANY_EMPLOYEE,
-        FullBlog =PROMPT_FULLBLOG_FINAL,
-        USER_MESSAGE=user_message
+    full_prompt = (
+        agent_results["intro"]+
+        agent_results["final_cta"]+
+        agent_results["faqs"]+
+        agent_results["business_description"]+
+        agent_results["short_cta"]+
+        agent_results["integrate_references"]+
+        COMPANY_NAME+
+        CALL_NUMBER+
+        ADDRESS+
+        STATE_NAME+
+        LINK+
+        COMPANY_EMPLOYEE+
+        PROMPT_FULLBLOG_FINAL+
+        user_message
     )
     final_output = Full_Blog_Writer(full_prompt, TEMPERATURE)
 
