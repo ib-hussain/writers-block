@@ -1,7 +1,19 @@
-Flask>=3.0.0
-psycopg2-binary>=2.9.0
+Flask>=3.1.0
+psycopg2-binary>=2.9.10
 python-dotenv>=1.0.0
-gunicorn>=21.0.0
+gunicorn>=24.1.1
 langchain 
 langchain-core 
 langgraph
+# Pricing Per Million Tokens:                                Input   Output
+# OpenAI/gpt-oss-20B                                         $0.05   $0.20   References
+# openai/gpt-oss-120b                                        $0.15   $0.60   References, Final CTA
+# google/gemma-3n-E4B-it                                     $0.02   $0.04   Short CTA
+# Qwen/Qwen3-Next-80B-A3B-Instruct                           $0.15   $1.50   Buisness Description, Introduction
+# Qwen/Qwen2.5-7B-Instruct-Turbo                             $0.30   $0.30   Buisness Description
+# deepseek-ai/DeepSeek-V3.1                                  $0.60   $1.25   FAQs
+# Qwen/Qwen2.5-72B-Instruct-Turbo                            $1.20   $1.20   FAQs
+# meta-llama/Meta-Llama-3-8B-Instruct-Lite                   $0.10   $0.10   Final CTA
+# deepseek-ai/DeepSeek-R1-0528-tput                          $0.55   $2.19   Intro Section
+# Qwen/Qwen3-Next-80B-A3B-Instruct                           $0.15   $1.50   Intro Section
+# deepseek-ai/DeepSeek-V3                                    $1.25   $1.25   Final Full Blog

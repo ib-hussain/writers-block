@@ -171,6 +171,20 @@ The system supports 26+ variables for prompt customization:
 - `TEMPERATURE` - Content generation temperature (0.0-1.0)
 
 ## 🌐 API Documentation
+### Pricing  
+<!-- make the below into a proper form once project is completed -->
+# Pricing Per Million Tokens:                                Input   Output
+# OpenAI/gpt-oss-20B                                         $0.05   $0.20   References
+# openai/gpt-oss-120b                                        $0.15   $0.60   References, Final CTA
+# google/gemma-3n-E4B-it                                     $0.02   $0.04   Short CTA
+# Qwen/Qwen3-Next-80B-A3B-Instruct                           $0.15   $1.50   Buisness Description, Introduction
+# Qwen/Qwen2.5-7B-Instruct-Turbo                             $0.30   $0.30   Buisness Description
+# deepseek-ai/DeepSeek-V3.1                                  $0.60   $1.25   FAQs
+# Qwen/Qwen2.5-72B-Instruct-Turbo                            $1.20   $1.20   FAQs
+# meta-llama/Meta-Llama-3-8B-Instruct-Lite                   $0.10   $0.10   Final CTA
+# deepseek-ai/DeepSeek-R1-0528-tput                          $0.55   $2.19   Intro Section
+# Qwen/Qwen3-Next-80B-A3B-Instruct                           $0.15   $1.50   Intro Section
+# deepseek-ai/DeepSeek-V3                                    $1.25   $1.25   Final Full Blog
 
 ### POST `/api/chat`
 
@@ -287,3 +301,4 @@ Email: ibrahimbeaconarion@gmail.com
 ---
 
 **Note:** This project is under active development. The AI integration layer is currently being implemented. The application framework, database layer, and frontend are fully functional.
+

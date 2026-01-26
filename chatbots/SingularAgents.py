@@ -3,14 +3,23 @@ from __future__ import annotations
 import os
 from typing import Tuple, Dict, Any
 import json
-from langchain_openai import ChatOpenAI
 from typing import Dict, Any, Optional
 from langchain_together import Together
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, END
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
 # DEFINE CONSTANTS AND CONFIG
 DEBUGGING_MODE = True
+FIRST_TURN1 = 0
+FIRST_TURN2 = 0
+FIRST_TURN3 = 0
+FIRST_TURN4 = 0
+FIRST_TURN5 = 0
 NULL_STRING = " "
 POOL_MIN = 1
 POOL_MAX = 10
@@ -57,19 +66,14 @@ SECTION_SPECS: Dict[str, Dict[str, Any]] = {
     "short_cta": {"min_chars": SHORT_CTA_MIN_TOKENS, "max_chars": SHORT_CTA_MAX_TOKENS},
     "integrate_references": {"min_chars": REFERENCES_MIN_TOKENS, "max_chars": REFERENCES_MAX_TOKENS},
 }
-def _make_llm(temperature: float) -> Together:
+def _make_llm(temperature: float, maxTokens: int, model: str) -> Together:
     # Choose your model here; keep it stable.
-    # return ChatOpenAI(
-    #     model="gpt-4o-mini",
-    #     temperature=temperature,
-    #     max_tokens=640,
-    #     timeout=60,
-    #     max_retries=2,
-    # )
     llm = Together(
-        model="google/gemma-3n-E4B-it",
+        model=model, #this will different for every agent due to the use case
         temperature=temperature,
-        together_api_key=str(os.getenv("TOGETHER_API_KEY"))
+        together_api_key=str(os.getenv("TOGETHER_API_KEY")),
+        max_tokens=maxTokens
+        # add other constraints here so that there is more control on the model
     )
     return llm
 
@@ -152,32 +156,28 @@ class _State(Dict[str, Any]):
 
 def _build_graph():
     g = StateGraph(_State)
-
     def node_generate(state: _State) -> _State:
         llm = state["llm"]
         section_id = state["section_id"]
         prompt = state["prompt"]
         state["raw"] = _generate_json(llm, section_id, prompt)
         return state
-
     def node_validate(state: _State) -> _State:
         llm = state["llm"]
         section_id = state["section_id"]
         state["final_json"] = _validate_or_repair(llm, section_id, state["raw"])
         return state
-
     g.add_node("generate", node_generate)
     g.add_node("validate", node_validate)
     g.set_entry_point("generate")
     g.add_edge("generate", "validate")
     g.add_edge("validate", END)
-
     return g.compile()
 
 _GRAPH = _build_graph()
 
-def _run_section_agent(section_id: str, prompt: str, temperature: float) -> Tuple[str, str]:
-    llm = _make_llm(temperature)
+def _run_section_agent(section_id: str, prompt: str, temperature: float, model: str, maxTokenss: int) -> Tuple[str, str]:
+    llm = _make_llm(temperature, model, maxTokenss)
     state: _State = {"llm": llm, "section_id": section_id, "prompt": prompt}
     out = _GRAPH.invoke(state)
     return prompt, out["final_json"]
@@ -186,19 +186,45 @@ def _run_section_agent(section_id: str, prompt: str, temperature: float) -> Tupl
 # Public agent functions (signature preserved)
 # ----------------------------
 def Intro_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    return _run_section_agent("intro", prompt, temperature)
-
+    if FIRST_TURN1==0:
+        FIRST_TURN1=1
+        return _run_section_agent("intro", prompt, temperature, model="Qwen/Qwen3-Next-80B-A3B-Instruct", maxTokenss=INTRO_MAX_TOKENS)
+    elif FIRST_TURN1==1:
+        FIRST_TURN1=0
+    return _run_section_agent("intro", prompt, temperature, model="deepseek-ai/DeepSeek-R1-0528-tput", maxTokenss=INTRO_MAX_TOKENS)
+# deepseek-ai/DeepSeek-R1-0528-tput , Qwen/Qwen3-Next-80B-A3B-Instruct
 def Final_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    return _run_section_agent("final_cta", prompt, temperature)
-
+    if FIRST_TURN2==0:
+        FIRST_TURN2=1
+        return _run_section_agent("final_cta", prompt, temperature, model="openai/gpt-oss-120b", maxTokenss=FINAL_CTA_MAX_TOKENS)
+    elif FIRST_TURN2==1:
+        FIRST_TURN2=0
+        return _run_section_agent("final_cta", prompt, temperature, model="meta-llama/Meta-Llama-3-8B-Instruct-Lite", maxTokenss=FINAL_CTA_MAX_TOKENS)
+# openai/gpt-oss-120b , meta-llama/Meta-Llama-3-8B-Instruct-Lite
 def FAQs_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    return _run_section_agent("faqs", prompt, temperature)
-
+    if FIRST_TURN3==0:
+        FIRST_TURN3=1
+        return _run_section_agent("faqs", prompt, temperature, model="deepseek-ai/DeepSeek-V3.1", maxTokenss=FAQ_MAX_TOKENS)
+    elif FIRST_TURN3==1:
+        FIRST_TURN3=0
+        return _run_section_agent("faqs", prompt, temperature, model="Qwen/Qwen2.5-72B-Instruct-Turbo", maxTokenss=FAQ_MAX_TOKENS)
+# deepseek-ai/DeepSeek-V3.1 , Qwen/Qwen2.5-72B-Instruct-Turbo
 def Business_Description_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    return _run_section_agent("business_description", prompt, temperature)
-
+    if FIRST_TURN4==0:
+        FIRST_TURN4=1
+        return _run_section_agent("business_description", prompt, temperature, model="Qwen/Qwen3-Next-80B-A3B-Instruct", maxTokenss=BUISNESS_DESC_MAX_TOKENS)
+    elif FIRST_TURN4==1:
+        FIRST_TURN4=0
+        return _run_section_agent("business_description", prompt, temperature, model="Qwen/Qwen2.5-7B-Instruct-Turbo", maxTokenss=BUISNESS_DESC_MAX_TOKENS)
+# Qwen/Qwen3-Next-80B-A3B-Instruct , Qwen/Qwen2.5-7B-Instruct-Turbo
 def Short_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    return _run_section_agent("short_cta", prompt, temperature)
-
+    return _run_section_agent("short_cta", prompt, temperature, model="google/gemma-3n-E4B-it", maxTokenss=SHORT_CTA_MAX_TOKENS)
+# google/gemma-3n-E4B-it
 def References_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    return _run_section_agent("integrate_references", prompt, temperature)
+    if FIRST_TURN5==0:
+        FIRST_TURN5=1
+        return _run_section_agent("integrate_references", prompt, temperature, model="openai/gpt-oss-20B", maxTokenss=REFERENCES_MAX_TOKENS)
+    elif FIRST_TURN5==1:
+        FIRST_TURN5=0
+        return _run_section_agent("integrate_references", prompt, temperature, model="openai/gpt-oss-120b", maxTokenss=REFERENCES_MAX_TOKENS)
+# OpenAI/gpt-oss-20B , openai/gpt-oss-120b
