@@ -3,8 +3,12 @@ from __future__ import annotations
 
 import os
 import json
+import time
+import random
 import threading
 from typing import Tuple, Dict, Any, Optional
+
+from typing_extensions import TypedDict
 
 from langchain_together import Together
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -22,7 +26,7 @@ except Exception:
 DEBUGGING_MODE = True
 NULL_STRING = " "
 
-# NOTE: These are token budgets; we convert to char budgets for validation.
+# NOTE: token budgets; we validate using char proxy for coarse bounds.
 INTRO_MAX_TOKENS = 640
 INTRO_MIN_TOKENS = 128
 
@@ -41,10 +45,11 @@ SHORT_CTA_MIN_TOKENS = 64
 REFERENCES_MAX_TOKENS = 512
 REFERENCES_MIN_TOKENS = 128
 
+# (Not used in this file directly, but kept for parity with your constants)
 FULL_TEXT_MAX_TOKENS = 3584
 FULL_TEXT_MIN_TOKENS = 1792
 
-# Approx conversion: 1 token ~ 5 chars (good enough for coarse bounds)
+# Approx conversion: 1 token ~ 5 chars (your current heuristic)
 _CHARS_PER_TOKEN = 5
 
 def _tok_to_char(n_tokens: int) -> int:
@@ -70,7 +75,6 @@ Token discipline:
 - Keep content_md concise and within the section's expected size.
 """
 
-# Per-section constraints (char-based, derived from your token budgets)
 SECTION_SPECS: Dict[str, Dict[str, int]] = {
     "intro": {"min_chars": _tok_to_char(INTRO_MIN_TOKENS), "max_chars": _tok_to_char(INTRO_MAX_TOKENS)},
     "final_cta": {"min_chars": _tok_to_char(FINAL_CTA_MIN_TOKENS), "max_chars": _tok_to_char(FINAL_CTA_MAX_TOKENS)},
@@ -83,7 +87,6 @@ SECTION_SPECS: Dict[str, Dict[str, int]] = {
 # ----------------------------
 # Thread-safe model alternation
 # ----------------------------
-# We preserve your “alternate models” intention, but make it safe under parallel calls.
 _model_toggle_lock = threading.Lock()
 _model_toggle_state: Dict[str, int] = {
     "intro": 0,
@@ -94,10 +97,6 @@ _model_toggle_state: Dict[str, int] = {
 }
 
 def _choose_model(section_id: str, model_a: str, model_b: Optional[str]) -> str:
-    """
-    Alternates A/B per section_id in a thread-safe way.
-    If model_b is None, always returns model_a.
-    """
     if not model_b:
         return model_a
     with _model_toggle_lock:
@@ -111,9 +110,7 @@ def _choose_model(section_id: str, model_a: str, model_b: Optional[str]) -> str:
 def _make_llm(temperature: float, max_tokens: int, model: str) -> Together:
     api_key = os.getenv("TOGETHER_API_KEY")
     if not api_key:
-        # Fail fast with a clear message rather than silent None behaviour.
         raise RuntimeError("TOGETHER_API_KEY is not set in environment.")
-
     return Together(
         model=model,
         temperature=temperature,
@@ -122,17 +119,46 @@ def _make_llm(temperature: float, max_tokens: int, model: str) -> Together:
     )
 
 # ----------------------------
+# Retry/backoff for Together transient failures
+# ----------------------------
+def _is_transient_provider_error(msg: str) -> bool:
+    m = (msg or "").lower()
+    return (
+        "error 500" in m
+        or "http 500" in m
+        or "service unavailable" in m
+        or "timeout" in m
+        or "temporarily" in m
+        or "rate limit" in m
+        or "overloaded" in m
+    )
+
+def _invoke_with_retries(llm: Together, messages, *, attempts: int = 4) -> str:
+    last_err: Optional[Exception] = None
+    for i in range(attempts):
+        try:
+            out = llm.invoke(messages)
+            return out.content if hasattr(out, "content") else str(out)
+        except Exception as e:
+            last_err = e
+            msg = str(e)
+            if (not _is_transient_provider_error(msg)) or (i == attempts - 1):
+                raise
+            sleep_s = (0.4 * (2 ** i)) + random.uniform(0.0, 0.25)
+            time.sleep(sleep_s)
+    raise last_err  # pragma: no cover
+
+# ----------------------------
 # Generation + validation
 # ----------------------------
 def _generate_json(llm: Together, section_id: str, prompt: str) -> str:
     sys = SYSTEM_DIRECTIVE + f"\nSECTION_ID = {section_id}\n"
     messages = [SystemMessage(content=sys), HumanMessage(content=prompt)]
-    out = llm.invoke(messages)
-    return out.content if hasattr(out, "content") else str(out)
+    return _invoke_with_retries(llm, messages, attempts=4)
 
 def _try_parse_json(section_id: str, s: str) -> Optional[Dict[str, Any]]:
     try:
-        obj = json.loads(s.strip())
+        obj = json.loads((s or "").strip())
         if not isinstance(obj, dict):
             return None
 
@@ -140,7 +166,6 @@ def _try_parse_json(section_id: str, s: str) -> Optional[Dict[str, Any]]:
         if not required.issubset(obj.keys()):
             return None
 
-        # Normalisations
         if obj.get("section_id") != section_id:
             obj["section_id"] = section_id
 
@@ -171,7 +196,7 @@ def _validate_or_repair(llm: Together, section_id: str, raw: str) -> str:
             parsed["warnings"].append(f"content_md trimmed to max_chars={max_c}.")
         return json.dumps(parsed, ensure_ascii=False)
 
-    # One repair attempt (same model; directive forces JSON)
+    # One repair attempt (same model; directive forces JSON). Apply retries here too.
     repair_system = SYSTEM_DIRECTIVE + f"""
 REPAIR MODE:
 You will be given invalid output. Convert it into a SINGLE valid JSON object matching the schema exactly.
@@ -182,8 +207,7 @@ Return JSON only.
         SystemMessage(content=repair_system),
         HumanMessage(content=f"INVALID_OUTPUT:\n{raw}")
     ]
-    repaired = llm.invoke(messages)
-    repaired_text = repaired.content if hasattr(repaired, "content") else str(repaired)
+    repaired_text = _invoke_with_retries(llm, messages, attempts=3)
 
     parsed2 = _try_parse_json(section_id, repaired_text)
     if parsed2 is None:
@@ -207,8 +231,12 @@ Return JSON only.
 # ----------------------------
 # LangGraph micro-graph: generate -> validate/repair -> END
 # ----------------------------
-class _State(Dict[str, Any]):
-    pass
+class _State(TypedDict, total=False):
+    llm: Any
+    section_id: str
+    prompt: str
+    raw: str
+    final_json: str
 
 def _build_graph():
     g = StateGraph(_State)
@@ -240,64 +268,74 @@ def _run_section_agent(
     prompt: str,
     temperature: float,
     model: str,
-    max_tokens: int
+    max_tokens: int,
+    fallback_model: Optional[str] = None
 ) -> Tuple[str, str]:
-    # FIX: correct argument order to _make_llm(temperature, max_tokens, model)
+    """
+    Runs section agent with retries. If transient provider failures persist,
+    optionally retry with fallback_model.
+    """
     llm = _make_llm(temperature=temperature, max_tokens=max_tokens, model=model)
     state: _State = {"llm": llm, "section_id": section_id, "prompt": prompt}
-    out = _GRAPH.invoke(state)
-    return prompt, out["final_json"]
+
+    try:
+        out = _GRAPH.invoke(state)
+        return prompt, out["final_json"]
+    except Exception as e:
+        msg = str(e)
+        if (not _is_transient_provider_error(msg)) or (not fallback_model) or (fallback_model == model):
+            raise
+
+        llm2 = _make_llm(temperature=temperature, max_tokens=max_tokens, model=fallback_model)
+        state2: _State = {"llm": llm2, "section_id": section_id, "prompt": prompt}
+        out2 = _GRAPH.invoke(state2)
+        return prompt, out2["final_json"]
 
 # ----------------------------
-# Public agent functions (signature preserved, models unchanged)
+# Public agents (signature preserved, models unchanged)
 # ----------------------------
-
 def Intro_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    model = _choose_model(
-        "intro",
-        model_a="Qwen/Qwen3-Next-80B-A3B-Instruct",
-        model_b="deepseek-ai/DeepSeek-R1-0528-tput",
-    )
-    return _run_section_agent("intro", prompt, temperature, model=model, max_tokens=INTRO_MAX_TOKENS)
+    model_a = "Qwen/Qwen3-Next-80B-A3B-Instruct"
+    model_b = "deepseek-ai/DeepSeek-R1-0528-tput"
+    model = _choose_model("intro", model_a=model_a, model_b=model_b)
+    fallback = model_b if model == model_a else model_a
+    return _run_section_agent("intro", prompt, temperature, model=model, max_tokens=INTRO_MAX_TOKENS, fallback_model=fallback)
 
 def Final_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    model = _choose_model(
-        "final_cta",
-        model_a="openai/gpt-oss-120b",
-        model_b="meta-llama/Meta-Llama-3-8B-Instruct-Lite",
-    )
-    return _run_section_agent("final_cta", prompt, temperature, model=model, max_tokens=FINAL_CTA_MAX_TOKENS)
+    model_a = "openai/gpt-oss-120b"
+    model_b = "meta-llama/Meta-Llama-3-8B-Instruct-Lite"
+    model = _choose_model("final_cta", model_a=model_a, model_b=model_b)
+    fallback = model_b if model == model_a else model_a
+    return _run_section_agent("final_cta", prompt, temperature, model=model, max_tokens=FINAL_CTA_MAX_TOKENS, fallback_model=fallback)
 
 def FAQs_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    model = _choose_model(
-        "faqs",
-        model_a="deepseek-ai/DeepSeek-V3.1",
-        model_b="Qwen/Qwen2.5-72B-Instruct-Turbo",
-    )
-    return _run_section_agent("faqs", prompt, temperature, model=model, max_tokens=FAQ_MAX_TOKENS)
+    model_a = "deepseek-ai/DeepSeek-V3.1"
+    model_b = "Qwen/Qwen2.5-72B-Instruct-Turbo"
+    model = _choose_model("faqs", model_a=model_a, model_b=model_b)
+    fallback = model_b if model == model_a else model_a
+    return _run_section_agent("faqs", prompt, temperature, model=model, max_tokens=FAQ_MAX_TOKENS, fallback_model=fallback)
 
 def Business_Description_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    model = _choose_model(
-        "business_description",
-        model_a="Qwen/Qwen3-Next-80B-A3B-Instruct",
-        model_b="Qwen/Qwen2.5-7B-Instruct-Turbo",
-    )
-    return _run_section_agent("business_description", prompt, temperature, model=model, max_tokens=BUISNESS_DESC_MAX_TOKENS)
+    model_a = "Qwen/Qwen3-Next-80B-A3B-Instruct"
+    model_b = "Qwen/Qwen2.5-7B-Instruct-Turbo"
+    model = _choose_model("business_description", model_a=model_a, model_b=model_b)
+    fallback = model_b if model == model_a else model_a
+    return _run_section_agent("business_description", prompt, temperature, model=model, max_tokens=BUISNESS_DESC_MAX_TOKENS, fallback_model=fallback)
 
 def Short_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    # Single model (no alternation) per your current design
+    # Single model; no fallback requested.
     return _run_section_agent(
         "short_cta",
         prompt,
         temperature,
         model="google/gemma-3n-E4B-it",
-        max_tokens=SHORT_CTA_MAX_TOKENS
+        max_tokens=SHORT_CTA_MAX_TOKENS,
+        fallback_model=None
     )
 
 def References_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    model = _choose_model(
-        "integrate_references",
-        model_a="openai/gpt-oss-20B",
-        model_b="openai/gpt-oss-120b",
-    )
-    return _run_section_agent("integrate_references", prompt, temperature, model=model, max_tokens=REFERENCES_MAX_TOKENS)
+    model_a = "openai/gpt-oss-20B"
+    model_b = "openai/gpt-oss-120b"
+    model = _choose_model("integrate_references", model_a=model_a, model_b=model_b)
+    fallback = model_b if model == model_a else model_a
+    return _run_section_agent("integrate_references", prompt, temperature, model=model, max_tokens=REFERENCES_MAX_TOKENS, fallback_model=fallback)

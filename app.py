@@ -244,15 +244,30 @@ def handle_chat():
         COMPANY_EMPLOYEE = vars_payload.get("COMPANY_EMPLOYEE", "").strip()
         
         BLOGTYPE = vars_payload.get("BLOGTYPE", "Legal").strip()
-        TEMPERATURE = vars_payload.get("TEMPERATURE", "0.70").strip()
+        try:
+            TEMPERATURE = float(vars_payload.get("TEMPERATURE", 0.70))
+        except Exception:
+            TEMPERATURE = 0.70
+
         
-        # Blog example IDs (arrays)
-        BLOGFOREXAMPLE_IDS = vars_payload.get("BLOGFOREXAMPLE", [])
-        BLOGPART_INTRO_IDS = vars_payload.get("BLOGPART_INTRO", [])
-        BLOGPART_FINALCTA_IDS = vars_payload.get("BLOGPART_FINALCTA", [])
-        BLOGPART_FAQS_IDS = vars_payload.get("BLOGPART_FAQS", [])
-        BLOGPART_BUSINESSDESC_IDS = vars_payload.get("BLOGPART_BUSINESSDESC", [])
-        BLOGPART_SHORTCTA_IDS = vars_payload.get("BLOGPART_SHORTCTA", [])
+        def _coerce_int_list(xs):
+            if not xs:
+                return []
+            out = []
+            for x in xs:
+                try:
+                    out.append(int(x))
+                except Exception:
+                    continue
+            return out
+
+        BLOGFOREXAMPLE_IDS = _coerce_int_list(vars_payload.get("BLOGFOREXAMPLE", []))
+        BLOGPART_INTRO_IDS = _coerce_int_list(vars_payload.get("BLOGPART_INTRO", []))
+        BLOGPART_FINALCTA_IDS = _coerce_int_list(vars_payload.get("BLOGPART_FINALCTA", []))
+        BLOGPART_FAQS_IDS = _coerce_int_list(vars_payload.get("BLOGPART_FAQS", []))
+        BLOGPART_BUSINESSDESC_IDS = _coerce_int_list(vars_payload.get("BLOGPART_BUSINESSDESC", []))
+        BLOGPART_SHORTCTA_IDS = _coerce_int_list(vars_payload.get("BLOGPART_SHORTCTA", []))
+
         
         # User-editable prompts (will be pre-filled with defaults but can be edited)
         PROMPT_FULLBLOG = vars_payload.get("PROMPT_FULLBLOG", "").strip()
@@ -381,6 +396,7 @@ def handle_chat():
             TEMPERATURE
         )
         # Note: Database persistence will be handled by chatbots.py as mentioned
+        print("+++++++++++++++++++++++++ BOT RESPONSE +++++++++++++++++++++++++\n", bot_response)
         # Each agent will send its own prompt and bot response to profileHistory
         return jsonify({
             "success": True,

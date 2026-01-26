@@ -1,3 +1,4 @@
+<!-- chatbot.html -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -71,32 +72,6 @@
         </div>
 
         <div class="vars-body">
-          <!-- Blog Type -->
-          <div class="vars-section">
-            <h4 class="vars-section-title">Blog Type</h4>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" name="blogType" value="Health" id="VAR_BLOGTYPE_HEALTH" />
-                <span>Health</span>
-              </label>
-              <label class="radio-label">
-                <input type="radio" name="blogType" value="Legal" id="VAR_BLOGTYPE_LEGAL" checked />
-                <span>Legal</span>
-              </label>
-            </div>
-          </div>
-          <!-- Temperature -->
-          <div class="vars-section">
-            <h4 class="vars-section-title">Temperature</h4>
-            <div class="slider-container">
-              <input type="range" id="VAR_TEMPERATURE" min="0" max="100" value="70" class="slider" />
-              <div class="slider-labels">
-                <span>0.00</span>
-                <span id="temperatureValue" class="slider-value">0.70</span>
-                <span>1.00</span>
-              </div>
-            </div>
-          </div>
           <!-- Basic Variables -->
           <div class="vars-section">
             <h4 class="vars-section-title">Basic Information</h4>
@@ -143,6 +118,80 @@
             </div>
           </div>
 
+          <!-- Blog Type -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Blog Type</h4>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="blogType" value="Legal" id="VAR_BLOGTYPE_LEGAL" checked />
+                <span>Legal</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="blogType" value="Health" id="VAR_BLOGTYPE_HEALTH" />
+                <span>Health</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Blog For Example -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Blog Examples to Use</h4>
+            <p class="vars-helper-text">Select up to 10 example blogs to reference</p>
+            <div class="checkbox-grid" id="blogForExampleContainer">
+              <!-- Checkboxes 1-10 or 11-20 will be populated by JS -->
+            </div>
+          </div>
+
+          <!-- Temperature -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Temperature</h4>
+            <p class="vars-helper-text">
+              Low values (&lt;0.50) produce conservative, deterministic, and accurate responses.<br>
+              High values (&gt;0.50) encourage creative, diverse, and potentially inaccurate outputs.
+            </p>
+            <div class="slider-container">
+              <input type="range" id="VAR_TEMPERATURE" min="0" max="100" value="70" class="slider" />
+              <div class="slider-labels">
+                <span>0.00 (Precise)</span>
+                <span id="temperatureValue" class="slider-value">0.70</span>
+                <span>1.00 (Creative)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Blog Part For Example -->
+          <div class="vars-section">
+            <h4 class="vars-section-title">Blog Part Examples</h4>
+            <p class="vars-helper-text">Select example blogs for each section (up to 10 per section)</p>
+            
+            <div class="blog-part-sections">
+              <div class="blog-part-item">
+                <h5>Intro</h5>
+                <div class="checkbox-grid-small" id="exampleIntro"></div>
+              </div>
+
+              <div class="blog-part-item">
+                <h5>Final CTA</h5>
+                <div class="checkbox-grid-small" id="exampleFinalCTA"></div>
+              </div>
+
+              <div class="blog-part-item">
+                <h5>FAQs</h5>
+                <div class="checkbox-grid-small" id="exampleFAQs"></div>
+              </div>
+
+              <div class="blog-part-item">
+                <h5>Business Description</h5>
+                <div class="checkbox-grid-small" id="exampleBusinessDesc"></div>
+              </div>
+
+              <div class="blog-part-item">
+                <h5>Short CTA</h5>
+                <div class="checkbox-grid-small" id="exampleShortCTA"></div>
+              </div>
+            </div>
+          </div>
+
           <!-- Source & Keywords -->
           <div class="vars-section">
             <h4 class="vars-section-title">Source & Keywords</h4>
@@ -163,51 +212,6 @@
               </label>
             </div>
           </div>
-
-          <!-- Blog For Example -->
-          <div class="vars-section">
-            <h4 class="vars-section-title">Blog Examples to Use</h4>
-            <p class="vars-helper-text">Select up to 10 example blogs to reference</p>
-            <div class="checkbox-grid" id="blogForExampleContainer">
-              <!-- Checkboxes 1-10 or 11-20 will be populated by JS -->
-            </div>
-          </div>
-              <!-- REFERENCING ID:345, Blog For Example DOESNOT need to be here -->
-
-
-          <!-- Blog Part For Example -->
-          <div class="vars-section">
-            <h4 class="vars-section-title">Blog Part Examples</h4>
-            <p class="vars-helper-text">Select example blogs for each section (up to 10 per section)</p>
-            
-            <div class="blog-part-sections">
-              <div class="blog-part-item">
-                <h5>Intro</h5>
-                <div class="checkbox-grid-small" id="exampleIntro"></div>
-              </div>
-              <div class="blog-part-item">
-                <h5>Final CTA</h5>
-                <div class="checkbox-grid-small" id="exampleFinalCTA"></div>
-              </div>
-
-              <div class="blog-part-item">
-                <h5>FAQs</h5>
-                <div class="checkbox-grid-small" id="exampleFAQs"></div>
-              </div>
-
-              <div class="blog-part-item">
-                <h5>Business Description</h5>
-                <div class="checkbox-grid-small" id="exampleBusinessDesc"></div>
-              </div>
-
-              <div class="blog-part-item">
-                <h5>Short CTA</h5>
-                <div class="checkbox-grid-small" id="exampleShortCTA"></div>
-              </div>
-              <!-- REFERENCING ID:345 HERE, it needs to be here as it s also a checkbox so yeah -->
-            </div>
-          </div>
-
 
           <!-- Prompts -->
           <div class="vars-section">

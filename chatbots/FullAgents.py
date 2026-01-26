@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import os
 import json
-import re
+import time
+import random
 from typing import Tuple, Dict, Any, Optional
+
+from typing_extensions import TypedDict
 
 from langchain_together import Together
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -22,11 +25,10 @@ except Exception:
 DEBUGGING_MODE = True
 NULL_STRING = " "
 
-# Constraints (must match your requirement)
 FULL_TEXT_MAX_TOKENS = 3584
 FULL_TEXT_MIN_TOKENS = 1792
 
-# Approx conversion: 1 token ~ 5 chars (matching your SingularAgents.py)
+# Approx conversion: 1 token ~ 5 chars (consistent with SingularAgents)
 _CHARS_PER_TOKEN = 5
 
 def _tok_to_char(n_tokens: int) -> int:
@@ -35,7 +37,7 @@ def _tok_to_char(n_tokens: int) -> int:
 FULL_MIN_CHARS = _tok_to_char(FULL_TEXT_MIN_TOKENS)
 FULL_MAX_CHARS = _tok_to_char(FULL_TEXT_MAX_TOKENS)
 
-# Model constraint: DeepSeek-V3 ONLY
+# Constraint: DeepSeek-V3 ONLY
 COMPILER_MODEL = "deepseek-ai/DeepSeek-V3"
 
 SYSTEM_DIRECTIVE_COMPILER = """You are the final compiler agent in a multi-agent writing pipeline.
@@ -53,7 +55,6 @@ LENGTH TARGET:
 - Aim for a complete output that is within the target length window.
 """
 
-# Labels used by your orchestrator in the Full prompt
 _LABELS_IN_ORDER = [
     "Introduction Agent:",
     "Final CTA Agent:",
@@ -79,13 +80,39 @@ def _make_llm(temperature: float, max_tokens: int) -> Together:
     )
 
 # ----------------------------
+# Retry/backoff for Together transient failures
+# ----------------------------
+def _is_transient_provider_error(msg: str) -> bool:
+    m = (msg or "").lower()
+    return (
+        "error 500" in m
+        or "http 500" in m
+        or "service unavailable" in m
+        or "timeout" in m
+        or "temporarily" in m
+        or "rate limit" in m
+        or "overloaded" in m
+    )
+
+def _invoke_with_retries(llm: Together, messages, *, attempts: int = 4) -> str:
+    last_err: Optional[Exception] = None
+    for i in range(attempts):
+        try:
+            out = llm.invoke(messages)
+            return out.content if hasattr(out, "content") else str(out)
+        except Exception as e:
+            last_err = e
+            msg = str(e)
+            if (not _is_transient_provider_error(msg)) or (i == attempts - 1):
+                raise
+            sleep_s = (0.5 * (2 ** i)) + random.uniform(0.0, 0.35)
+            time.sleep(sleep_s)
+    raise last_err  # pragma: no cover
+
+# ----------------------------
 # Draft extraction / cleaning
 # ----------------------------
 def _try_extract_content_md(maybe_json: str) -> Optional[str]:
-    """
-    If maybe_json is a JSON object with {"content_md": "..."} return that content.
-    Otherwise None.
-    """
     s = (maybe_json or "").strip()
     try:
         obj = json.loads(s)
@@ -95,87 +122,91 @@ def _try_extract_content_md(maybe_json: str) -> Optional[str]:
         return None
     return None
 
-def _extract_sections_by_labels(full_prompt: str) -> str:
-    """
-    Your orchestrator concatenates a prompt containing labeled agent blocks.
-    Those blocks currently contain JSON from SingularAgents.
+def _iter_json_objects_by_brace_balance(text: str):
+    if not text:
+        return
+    in_str = False
+    escape = False
+    depth = 0
+    start = None
 
-    This function:
-    - finds each labeled block
-    - extracts JSON and replaces it with content_md if possible
-    - returns a 'cleaned' prompt suitable for the compiler model
-    """
+    for i, ch in enumerate(text):
+        if in_str:
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_str = False
+            continue
+
+        if ch == '"':
+            in_str = True
+            continue
+
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start is not None:
+                    end = i + 1
+                    yield start, end, text[start:end]
+                    start = None
+
+def _replace_any_json_objects(text: str) -> str:
+    if not text:
+        return ""
+    replacements = []
+    for start, end, chunk in _iter_json_objects_by_brace_balance(text):
+        content = _try_extract_content_md(chunk)
+        if content is not None:
+            replacements.append((start, end, content))
+    if not replacements:
+        return text
+
+    out = text
+    for start, end, content in reversed(replacements):
+        out = out[:start] + content + out[end:]
+    return out
+
+def _extract_sections_by_labels(full_prompt: str) -> str:
     if not full_prompt:
         return ""
 
     text = full_prompt
 
-    # Build segments by scanning for known labels in order.
-    # We do not assume perfect formatting; we search indexes.
     indices = []
     for label in _LABELS_IN_ORDER:
         idx = text.find(label)
         if idx != -1:
             indices.append((idx, label))
+
     if not indices:
-        # No labels found; as a fallback, attempt to replace any standalone JSON objects that contain content_md.
         return _replace_any_json_objects(text)
 
-    # Sort by position
     indices.sort(key=lambda x: x[0])
-
-    # Determine span for each labeled content block
     cleaned = text
-    # We replace from the end to preserve indices
+
+    # Replace blocks from the end to preserve indices
     for i in range(len(indices) - 1, -1, -1):
         start_idx, label = indices[i]
-        # content begins after label
         content_start = start_idx + len(label)
-        # end is next label start or end of string
         end_idx = indices[i + 1][0] if i + 1 < len(indices) else len(text)
 
         block = text[content_start:end_idx].strip()
-
         extracted = _try_extract_content_md(block)
         if extracted is None:
-            # If not JSON, keep as is.
             continue
 
-        # Replace the block (not the label) with extracted content_md
         cleaned = cleaned[:content_start] + "\n" + extracted.strip() + "\n" + cleaned[end_idx:]
 
-    # Additionally, handle any remaining JSON objects that include content_md
     cleaned = _replace_any_json_objects(cleaned)
-
     return cleaned
-
-_JSON_OBJECT_PATTERN = re.compile(r"\{(?:[^{}]|(?R))*\}", re.DOTALL)
-
-def _replace_any_json_objects(text: str) -> str:
-    """
-    Conservative pass: find JSON-like objects and replace those that parse and contain content_md.
-    If parsing fails, keep original.
-    """
-    if not text:
-        return ""
-
-    # This recursive regex may not be supported in all Python builds; if it errors, skip safely.
-    try:
-        matches = list(_JSON_OBJECT_PATTERN.finditer(text))
-    except Exception:
-        return text
-
-    if not matches:
-        return text
-
-    out = text
-    for m in reversed(matches):
-        s = m.group(0)
-        content = _try_extract_content_md(s)
-        if content is None:
-            continue
-        out = out[:m.start()] + content + out[m.end():]
-    return out
 
 # ----------------------------
 # Generation + validation/repair
@@ -185,79 +216,67 @@ def _generate_markdown(llm: Together, prompt: str) -> str:
         SystemMessage(content=SYSTEM_DIRECTIVE_COMPILER),
         HumanMessage(content=prompt),
     ]
-    out = llm.invoke(messages)
-    return out.content if hasattr(out, "content") else str(out)
+    return _invoke_with_retries(llm, messages, attempts=4)
 
 def _validate_or_repair(llm: Together, raw_md: str, cleaned_prompt: str) -> str:
     md = (raw_md or "").strip()
 
-    # Basic hard constraints:
-    # - no code fences
-    # - within length budget (chars proxy)
+    # Hard constraint: no code fences
     if "```" in md:
-        # Repair to remove code fences
         repair_system = SYSTEM_DIRECTIVE_COMPILER + f"""
 REPAIR MODE:
 You produced output that violates constraints (e.g., code blocks).
 Rewrite it as plain Markdown without code fences or HTML.
-Keep the same meaning and structure.
-Return Markdown only.
+Keep meaning and structure. Return Markdown only.
 """
         md = _generate_markdown(llm, f"{repair_system}\n\nORIGINAL_OUTPUT:\n{raw_md}\n\nSOURCE_PROMPT:\n{cleaned_prompt}")
 
-    # Length handling
     ln = len(md)
+
     if ln > FULL_MAX_CHARS:
-        # Trim by asking model to compress (prefer over naive slicing)
         compress_system = SYSTEM_DIRECTIVE_COMPILER + f"""
 COMPRESSION MODE:
-Your output is too long ({ln} chars). Rewrite it to fit within {FULL_MAX_CHARS} chars.
-Keep key information, remove redundancy, shorten examples, tighten phrasing.
-Return Markdown only.
+Your output is too long ({ln} chars). Rewrite to fit within {FULL_MAX_CHARS} chars.
+Keep key information, remove redundancy, tighten phrasing. Return Markdown only.
 """
-        md2 = _generate_markdown(llm, f"{compress_system}\n\nORIGINAL_OUTPUT:\n{md}\n\nSOURCE_PROMPT:\n{cleaned_prompt}")
-        md2 = (md2 or "").strip()
+        md2 = _generate_markdown(llm, f"{compress_system}\n\nORIGINAL_OUTPUT:\n{md}\n\nSOURCE_PROMPT:\n{cleaned_prompt}").strip()
         if md2:
             md = md2
-
-        # If still too long, do a safe hard trim as last resort.
         if len(md) > FULL_MAX_CHARS:
             md = md[:FULL_MAX_CHARS].rstrip()
 
     elif ln < FULL_MIN_CHARS:
-        # Expand by asking model to elaborate using only provided drafts (no new facts)
         expand_system = SYSTEM_DIRECTIVE_COMPILER + f"""
 EXPANSION MODE:
-Your output is too short ({ln} chars). Expand it to be at least {FULL_MIN_CHARS} chars.
-Add helpful detail, clarifying sentences, and structure, but do NOT invent new facts.
-Return Markdown only.
+Your output is too short ({ln} chars). Expand to at least {FULL_MIN_CHARS} chars.
+Add structure and clarifying detail, but do NOT invent new facts. Return Markdown only.
 """
-        md2 = _generate_markdown(llm, f"{expand_system}\n\nORIGINAL_OUTPUT:\n{md}\n\nSOURCE_PROMPT:\n{cleaned_prompt}")
-        md2 = (md2 or "").strip()
+        md2 = _generate_markdown(llm, f"{expand_system}\n\nORIGINAL_OUTPUT:\n{md}\n\nSOURCE_PROMPT:\n{cleaned_prompt}").strip()
         if md2:
             md = md2
-
-        # If still short, accept; do not loop repeatedly.
+        # If still short, accept; do not loop.
 
     return md.strip()
 
 # ----------------------------
-# LangGraph micro-graph: prepare -> generate -> validate/repair -> END
+# LangGraph micro-graph: prepare -> generate -> validate -> END
 # ----------------------------
-class _State(Dict[str, Any]):
-    pass
+class _State(TypedDict, total=False):
+    llm: Any
+    prompt: str
+    cleaned_prompt: str
+    raw_md: str
+    final_md: str
 
 def _build_graph():
     g = StateGraph(_State)
 
     def node_prepare(state: _State) -> _State:
-        # Extract content_md from any JSON drafts inside the full prompt
         state["cleaned_prompt"] = _extract_sections_by_labels(state["prompt"])
         return state
 
     def node_generate(state: _State) -> _State:
         llm = state["llm"]
-        # We feed the cleaned prompt to the compiler
         state["raw_md"] = _generate_markdown(llm, state["cleaned_prompt"])
         return state
 
@@ -283,16 +302,6 @@ _GRAPH = _build_graph()
 # Public API (signature preserved)
 # ----------------------------
 def Full_Blog_Writer(prompt: str, temperature: float) -> Tuple[str, str]:
-    """
-    Signature preserved: returns (used_prompt, output_markdown)
-
-    Uses Together LLM with model deepseek-ai/DeepSeek-V3 only.
-    Applies a micro-graph: prepare -> generate -> validate/repair.
-
-    Constraints enforced:
-    - max tokens: FULL_TEXT_MAX_TOKENS (via Together max_tokens)
-    - length window: FULL_TEXT_MIN_TOKENS..FULL_TEXT_MAX_TOKENS (via char proxy)
-    """
     llm = _make_llm(temperature=temperature, max_tokens=FULL_TEXT_MAX_TOKENS)
     state: _State = {"llm": llm, "prompt": prompt}
     out = _GRAPH.invoke(state)

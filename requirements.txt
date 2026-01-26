@@ -1,11 +1,18 @@
-Flask
-psycopg2-binary
-python-dotenv
-gunicorn
-langchain
-langchain-core
-langchain-community
-langchain-together
-langgraph
-requests
-httpx
+# Core web app
+Flask==3.0.3
+
+# PostgreSQL
+psycopg2-binary==2.9.9
+
+# Env vars
+python-dotenv==1.0.1
+
+# LangGraph + LangChain Core + Together integration (compatible set)
+langchain-core==0.3.79
+langgraph==0.2.35
+langchain-together==0.3.1
+
+# HTTP stack used by many integrations
+requests==2.32.3
+httpx==0.27.2
+typing-extensions==4.12.2

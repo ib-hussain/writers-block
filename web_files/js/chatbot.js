@@ -1,3 +1,4 @@
+// chatbot.js
 (() => {
   const overlay = document.getElementById("loadingOverlay");
   const reloadBtn = document.getElementById("reloadBtn");

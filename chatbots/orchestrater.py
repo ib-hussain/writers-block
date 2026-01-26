@@ -55,7 +55,7 @@ def write_profile_history(userprompt: str, chatresponse: str):
             cur = conn.cursor()
             cur.execute(
                 """
-                INSERT INTO profileHistory (id, entry_date, entry, "Userprompt", "chatResponse")
+                INSERT INTO profileHistory (id, entry_date, entry, userprompt, chatresponse)
                 VALUES (3, CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s)
                 """,
                 (userprompt, chatresponse)
@@ -104,7 +104,7 @@ def callAgents(
     PROMPT_SHORTCTA_FINAL: str,
     TEMPERATURE: float = 0.70
 ) -> str:
-
+    print("Request sent to orchestrater, process about to starrt")
     # Keep your existing progress init, but don't crash if it's not in scope
     try:
         write_progress()
@@ -143,6 +143,7 @@ def callAgents(
         for future in as_completed(futures):
             progress_col = futures[future]
             try:
+                print(f"About to call {progress_col} agent.")
                 used_prompt, output = future.result(timeout=90)
 
                 # Persist immediately (your desired behaviour)
@@ -166,7 +167,7 @@ def callAgents(
         "Integrate References Agent:\n" + agent_results["integrate_references"] + "\n\n"
         + common_vars
     )
-
+    print("Calling final writing agent with prompt:\n", full_prompt)
     used_prompt, final_output = Full_Blog_Writer(full_prompt, TEMPERATURE)
 
     write_profile_history(used_prompt, final_output)
