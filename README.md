@@ -21,7 +21,6 @@ Writer's Block is a Flask-based web application that streamlines blog content cr
 - **Progress Tracking** - Monitor daily agent completion and token usage statistics
 - **Example-Based Learning** - Fetch and utilize existing blog examples for consistent style
 
----
 
 ## Architecture
 
@@ -43,7 +42,7 @@ Writer's Block is a Flask-based web application that streamlines blog content cr
          │
 ┌────────▼────────┐
 │   AI Agents     │  LangChain/LangGraph
-│  (SingularAgents│  Content generation
+│ (SingularAgents,│  Content generation
 │   FullAgents)   │
 └────────┬────────┘
          │
@@ -162,7 +161,7 @@ Estimated costs based on typical token usage:
 
 ---
 
-## 🌐 API Documentation
+## API Endpoint Documentation
 
 ### Endpoints
 
@@ -395,56 +394,17 @@ GET /api/db/table/blogdata
 
 ---
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 **Important Notice:** This system is designed specifically for blog writing purposes only, for the specific client's needs as they requested.
 
----
-
-## 🤝 Contributing
-
-Contributions are welcome! To contribute:
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Coding Standards
-
-- Follow PEP 8 style guide for Python code
-- Use meaningful variable and function names
-- Add docstrings to all functions and classes
-- Write unit tests for new features
-- Update documentation for API changes
-
----
-
-## 📧 Contact
+## Contact
 
 **Ibrahim Hussain**  
 Email: [ibrahimbeaconarion@gmail.com](mailto:ibrahimbeaconarion@gmail.com)
 
-**Project Link:** [https://github.com/ib-hussain/writers-block](https://github.com/ib-hussain/writers-block)
-
----
-
-## 🙏 Acknowledgments
-
-- [Flask](https://flask.palletsprojects.com/) - Web framework
-- [LangChain](https://www.langchain.com/) - LLM framework
-- [PostgreSQL](https://www.postgresql.org/) - Database
-- [Render](https://render.com/) - Hosting platform
-
----
+**Project Link:** [https://writers-block-weup.onrender.com](https://writers-block-weup.onrender.com)
 
 <div align="center">
-
-**Made with ❤️ for content creators**
-
-⭐ Star this repo if you find it helpful!
-
-</div>
