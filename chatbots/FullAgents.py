@@ -22,4 +22,6 @@ FULL_TEXT_MAX_TOKENS = 3584
 FULL_TEXT_MIN_TOKENS = 1792
 
 def Full_Blog_Writer(prompt: str, temperature: float) -> Tuple[str, str]:
+    FULL_TEXT_MAX_TOKENS = 3584
+    FULL_TEXT_MIN_TOKENS = 1792
     return prompt, llm.generate(prompt, temperature)
