@@ -1,17 +1,29 @@
-# Writer's Block
+<div align="center">
+<h1 align="center">Writer's Block</h1>
 
-A Flask-based blog writing assistant designed to help content creators generate SEO-optimized blog posts with customizable prompts and AI-powered content generation.
+![Python Version](https://img.shields.io/badge/python-3.12.3%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Flask](https://img.shields.io/badge/Flask-3.1.0%2B-lightgrey)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15.12%2B-blue)
 
-## 🎯 Overview
+</div>
 
-Writer's Block is a web application that streamlines blog content creation through:
-- **Multi-section blog generation** (intro, CTAs, FAQs, business descriptions)
-- **Customizable prompt templates** with variable substitution
-- **Example-based learning** from existing blog content
-- **Progress tracking** for multi-step content generation
-- **PostgreSQL database** for content storage and history
+## Overview
 
-## 🏗️ Architecture
+Writer's Block is a Flask-based web application that streamlines blog content creation through AI-powered agents. Designed specifically for legal and health blog writing, it generates SEO-optimized content with customizable prompts, example-based learning, and multi-section blog generation.
+
+### Key Features
+
+- **Multi-Agent Architecture** - Parallel execution of specialized AI agents for different blog sections
+- **Customizable Prompts** - Template-based system with 26+ configurable variables
+- **PostgreSQL Integration** - Robust database layer for content storage and history tracking
+- **Interactive Web Interface** - Real-time chat interface with collapsible configuration panel
+- **Progress Tracking** - Monitor daily agent completion and token usage statistics
+- **Example-Based Learning** - Fetch and utilize existing blog examples for consistent style
+
+---
+
+## Architecture
 
 ```
 ┌─────────────────┐
@@ -30,204 +42,219 @@ Writer's Block is a web application that streamlines blog content creation throu
 └────────┬────────┘
          │
 ┌────────▼────────┐
+│   AI Agents     │  LangChain/LangGraph
+│  (SingularAgents│  Content generation
+│   FullAgents)   │
+└────────┬────────┘
+         │
+┌────────▼────────┐
 │   PostgreSQL    │  Content & history
 │   Database      │  Progress tracking
 └─────────────────┘
 ```
 
-## 📋 Features
+---
 
-### ✅ Implemented
+## Technology Stack
 
-- **Web Interface**
-  - Interactive chat interface for blog generation
-  - Collapsible variable configuration panel
-  - Real-time chat history loading
-  - LocalStorage persistence for user preferences
+### Backend
+- **Flask 3.1.0+** - Web framework
+- **PostgreSQL 12+** - Database
+- **psycopg2** - PostgreSQL adapter
+- **LangChain** - LLM framework
+- **LangGraph** - Agent orchestration
+- **Gunicorn** - Production WSGI server
 
-- **Variable Management**
-  - 26+ configurable variables (title, keywords, company info, etc.)
-  - Blog type selection (Health vs Legal)
-  - Temperature control for content generation
-  - Dynamic example selection (up to 10 per section)
+### Frontend
+- **HTML5/CSS3** - Structure and styling
+- **Vanilla JavaScript** - Interactive UI
+- **LocalStorage API** - Client-side persistence
 
-- **Database Layer**
-  - Connection pooling for efficient database access
-  - Safe transaction handling with automatic rollback
-  - Blog content storage (full blogs and individual parts)
-  - Chat history tracking with timestamps
-  - Progress tracking for multi-step generation
+### AI
+- **OpenAI Models** - GPT-based content generation
+- **DeepSeek Models** - Cost-effective options
+- **Qwen Models** - Specialized content generation
 
-- **API Endpoints**
-  - `/api/chat` - Chat message handling
-  - `/api/db/table/<table_name>` - Database table viewing
-  - `/api/stats/tokens/month` - Monthly token statistics
-  - `/api/profile/history` - Chat history by date
+---
 
-- **Prompt System**
-  - Template-based prompts with variable substitution
-  - Example fetching from database
-  - Support for multiple blog sections (intro, CTA, FAQs, etc.)
+## Features
 
-### 🚧 In Development
+#### Web Interface
+- Interactive chat interface for blog generation
+- Collapsible variable configuration panel
+- Real-time chat history loading
+- LocalStorage persistence for user preferences
+- Database table viewer
+- Token usage statistics dashboard
 
-- **AI Integration** - LLM provider integration for content generation
-- **User Authentication** - Multi-user support with session management
-- **Advanced Analytics** - Usage statistics and performance metrics
+#### Database Layer
+- Connection pooling for efficient access
+- Safe transaction handling with automatic rollback
+- Blog content storage (full blogs and parts)
+- Chat history tracking with timestamps
+- Progress tracking for multi-step generation
+- Token usage statistics
 
-## 🚀 Getting Started
+#### AI Agents
+- **Intro Writing Agent** - Generates engaging introductions
+- **Final CTA Agent** - Creates compelling calls-to-action
+- **FAQs Agent** - Generates relevant FAQ sections
+- **Business Description Agent** - Writes company descriptions
+- **Short CTA Agent** - Creates brief CTAs
+- **References Agent** - Integrates source citations
+- **Full Blog Writer** - Assembles complete blog posts
 
-### Prerequisites
+### In Development
 
-- Python 3.12+
-- PostgreSQL 12+
-- pip (Python package manager)
+- **Enhanced AI Integration** - Additional LLM provider support
+- **User Authentication** - Multi-user support with sessions
+- **Advanced Analytics** - Detailed usage metrics and insights
+- **Content Optimization** - SEO scoring and suggestions
+- **Template Library** - Pre-built prompt templates
 
-### Access the application
-   
-   Open your browser to: `https://writers-block-weup.onrender.com`
+---
 
-## 📁 Project Structure
+## Pricing & Cost Optimization
 
-```
-writers-block/
-├── app.py                      # Flask application & API routes
-├── requirements.txt            # Python dependencies
-├── render.yaml                 # Render.com deployment config
-├── .env                        # Environment variables (not in git)
-├── .gitignore                  # Git ignore rules
-│
-├── chatbots/                   # AI agent modules
-│   ├── orchestrater.py        # Agent orchestration & coordination
-│   ├── FullAgents.py          # Full blog writing agent
-│   ├── SingularAgents.py      # Individual section agents
-│   └── reasoning.py           # Classification logic (deprecated)
-│
-├── data/                       # Database layer
-│   ├── database_postgres.py   # Database connection & helpers
-│   ├── schema.sql             # PostgreSQL schema
-│   └── ignore/                # Sample data (not in git)
-│
-└── web_files/                  # Frontend assets
-    ├── chatbot.html           # Main chat interface
-    ├── databaseView.html      # Database viewer
-    ├── profile.html           # User profile
-    ├── navbar.html            # Navigation component
-    │
-    ├── css/                   # Stylesheets
-    │   ├── chatbot.css
-    │   ├── databaseView.css
-    │   ├── navbar.css
-    │   └── profile.css
-    │
-    ├── js/                    # JavaScript modules
-    │   ├── chatbot.js         # Chat logic & variable management
-    │   ├── dbOverview.js      # Database overview
-    │   ├── dbTablePage.js     # Table viewing
-    │   ├── navbar.js          # Navigation logic
-    │   └── profile.js         # Profile management
-    │
-    └── pictures/              # Images & icons
-```
+### AI Model Pricing
 
-## 🗄️ Database Schema
+The application uses multiple AI models optimized for different blog sections. Pricing is per million tokens (input/output).
 
-### Tables
+| Model | Input | Output | Use Case | Token Range |
+|-------|-------|--------|----------|-------------|
+| **OpenAI/gpt-oss-20B** | $0.05 | $0.20 | References | 128-512 tokens |
+| **openai/gpt-oss-120b** | $0.15 | $0.60 | References, Final CTA | 128-512 tokens |
+| **google/gemma-3n-E4B-it** | $0.02 | $0.04 | Short CTA | 64-256 tokens |
+| **Qwen/Qwen3-Next-80B-A3B-Instruct** | $0.15 | $1.50 | Business Description, Introduction | 128-1024 tokens |
+| **Qwen/Qwen2.5-7B-Instruct-Turbo** | $0.30 | $0.30 | Business Description | 128-1024 tokens |
+| **deepseek-ai/DeepSeek-V3.1** | $0.60 | $1.25 | FAQs | 512-1024 tokens |
+| **Qwen/Qwen2.5-72B-Instruct-Turbo** | $1.20 | $1.20 | FAQs | 512-1024 tokens |
+| **meta-llama/Meta-Llama-3-8B-Instruct-Lite** | $0.10 | $0.10 | Final CTA | 128-512 tokens |
+| **deepseek-ai/DeepSeek-R1-0528-tput** | $0.55 | $2.19 | Intro Section | 128-640 tokens |
+| **deepseek-ai/DeepSeek-V3** | $1.25 | $1.25 | Final Full Blog | 1792-3584 tokens |
 
-- **BlogData** - Complete blog posts
-- **BlogParts** - Individual blog sections (intro, CTA, FAQs, etc.)
-- **PromptData** - Prompt templates for content generation
-- **progress** - Daily progress tracking for agent completion
-- **profileHistory** - Chat history and user interactions
+### Cost Per Blog Section
 
+Estimated costs based on typical token usage:
 
-## 🔧 Configuration
+| Section | Typical Tokens | Model Used | Est. Cost |
+|---------|----------------|------------|-----------|
+| **Introduction** | 400 tokens | Qwen3-Next-80B | $0.0006 - $0.006 |
+| **Business Description** | 600 tokens | Qwen2.5-7B-Turbo | $0.0018 - $0.0018 |
+| **FAQs** | 800 tokens | DeepSeek-V3.1 | $0.0048 - $0.010 |
+| **Final CTA** | 300 tokens | gpt-oss-120b | $0.00045 - $0.0018 |
+| **Short CTA** | 150 tokens | gemma-3n-E4B | $0.00003 - $0.00006 |
+| **References** | 250 tokens | gpt-oss-20B | $0.000125 - $0.0005 |
+| **Full Blog Assembly** | 2500 tokens | DeepSeek-V3 | $0.03125 - $0.03125 |
 
-### Blog Types
+**Total Estimated Cost per Blog:** $0.04 - $0.05 USD
 
-The application supports two blog types with different example ranges:
+### Monthly Cost Estimates
 
-- **Legal** - Uses blog examples 11-20
-- **Health** - Uses blog examples 1-10
+| Usage Level | Blogs/Month | Est. Monthly Cost |
+|-------------|-------------|-------------------|
+| **Light** | 10 blogs | $0.40 - $0.50 |
+| **Medium** | 50 blogs | $2.00 - $2.50 |
+| **Heavy** | 200 blogs | $8.00 - $10.00 |
+| **Enterprise** | 1000 blogs | $40.00 - $50.00 |
 
-### Prompt Variables
+> **Note:** Costs are estimates based on typical usage. Actual costs may vary based on prompt complexity, example usage, and output length.
 
-The system supports 26+ variables for prompt customization:
-
-**Basic Information:**
-- `TITLE`, `COMPANY_NAME`, `CALL_NUMBER`, `ADDRESS`, `STATE_NAME`, `LINK`, `COMPANY_EMPLOYEE`
-
-**Content Variables:**
-- `KEYWORDS`, `SOURCE`, `INSERT_INTRO_QUESTION`, `INSERT_FAQ_QUESTIONS`
-
-**Example Selection:**
-- `BLOGFOREXAMPLE` - Full blog examples (array of IDs)
-- `BLOGPART_INTRO`, `BLOGPART_FINALCTA`, `BLOGPART_FAQS`, `BLOGPART_BUSINESSDESC`, `BLOGPART_SHORTCTA`
-
-**Prompts:**
-- `PROMPT_FULLBLOG`, `PROMPT_INTRO`, `PROMPT_FINALCTA`, `PROMPT_FULLFAQS`, `PROMPT_BUSINESSDESC`, `PROMPT_REFERENCES`, `PROMPT_SHORTCTA`
-
-**Settings:**
-- `TEMPERATURE` - Content generation temperature (0.0-1.0)
+---
 
 ## 🌐 API Documentation
-### Pricing  
-<!-- make the below into a proper form once project is completed -->
-# Pricing Per Million Tokens:                                Input   Output
-# OpenAI/gpt-oss-20B                                         $0.05   $0.20   References
-# openai/gpt-oss-120b                                        $0.15   $0.60   References, Final CTA
-# google/gemma-3n-E4B-it                                     $0.02   $0.04   Short CTA
-# Qwen/Qwen3-Next-80B-A3B-Instruct                           $0.15   $1.50   Buisness Description, Introduction
-# Qwen/Qwen2.5-7B-Instruct-Turbo                             $0.30   $0.30   Buisness Description
-# deepseek-ai/DeepSeek-V3.1                                  $0.60   $1.25   FAQs
-# Qwen/Qwen2.5-72B-Instruct-Turbo                            $1.20   $1.20   FAQs
-# meta-llama/Meta-Llama-3-8B-Instruct-Lite                   $0.10   $0.10   Final CTA
-# deepseek-ai/DeepSeek-R1-0528-tput                          $0.55   $2.19   Intro Section
-# Qwen/Qwen3-Next-80B-A3B-Instruct                           $0.15   $1.50   Intro Section
-# deepseek-ai/DeepSeek-V3                                    $1.25   $1.25   Final Full Blog
 
-### POST `/api/chat`
+### Endpoints
 
-Handle chat messages and generate blog content.
+#### 1. Generate Blog Content
+
+**POST** `/api/chat`
+
+Generate blog content using AI agents with customizable prompts and variables.
 
 **Request Body:**
 ```json
 {
-  "message": "Generate a blog about car accidents",
+  "message": "Generate a blog about car accidents in California",
   "vars": {
-    "TITLE": "What to Do After a Car Accident",
-    "KEYWORDS": "lawyer, attorney, accident, claim",
+    "TITLE": "What to Do After a Car Accident in California",
+    "KEYWORDS": "car accident lawyer, personal injury attorney, California accident claim",
     "TEMPERATURE": "0.70",
     "BLOGTYPE": "Legal",
-    "COMPANY_NAME": "Smith & Associates",
-    ...
+    "COMPANY_NAME": "Smith & Associates Law Firm",
+    "CALL_NUMBER": "1-800-555-0123",
+    "ADDRESS": "123 Main Street, Los Angeles",
+    "STATE_NAME": "California",
+    "LINK": "https://smithlawfirm.com",
+    "COMPANY_EMPLOYEE": "John Smith",
+    "INSERT_INTRO_QUESTION": "What should you do immediately after a car accident?",
+    "INSERT_FAQ_QUESTIONS": "How long do I have to file a claim? What damages can I recover?",
+    "SOURCE": "California Vehicle Code Section 20001",
+    "BLOGFOREXAMPLE": [11, 12, 13],
+    "BLOGPART_INTRO": [11, 12],
+    "BLOGPART_FINALCTA": [11, 12],
+    "BLOGPART_FAQS": [11, 12],
+    "BLOGPART_BUSINESSDESC": [11],
+    "BLOGPART_SHORTCTA": [11, 12],
+    "PROMPT_FULLBLOG": "Write a comprehensive blog post...",
+    "PROMPT_INTRO": "Write an engaging introduction...",
+    "PROMPT_FINALCTA": "Write a compelling call-to-action...",
+    "PROMPT_FULLFAQS": "Generate 5-7 frequently asked questions...",
+    "PROMPT_BUSINESSDESC": "Write a professional business description...",
+    "PROMPT_REFERENCES": "Integrate the following references...",
+    "PROMPT_SHORTCTA": "Write a brief call-to-action..."
   }
 }
 ```
 
-**Response:**
+**Response (200 OK):**
 ```json
 {
   "success": true,
-  "response": "Generated blog content...",
-  "timestamp": "2026-01-26T05:00:00",
+  "response": "# What to Do After a Car Accident in California\n\n[Generated blog content...]",
+  "timestamp": "2026-01-27T02:30:00",
   "debug_info": {
     "blog_type": "Legal",
     "temperature": "0.70",
     "examples_fetched": {
       "full_blogs": 3,
       "intro_parts": 2,
-      ...
+      "finalcta_parts": 2,
+      "faqs_parts": 2,
+      "businessdesc_parts": 1,
+      "shortcta_parts": 2
     }
   }
 }
 ```
 
-### GET `/api/profile/history?date=YYYY-MM-DD`
+**Error Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "code": "EMPTY_MESSAGE",
+  "message": "Message cannot be empty",
+  "timestamp": "2026-01-27T02:30:00"
+}
+```
+
+---
+
+#### 2. Get Chat History
+
+**GET** `/api/profile/history?date=YYYY-MM-DD`
 
 Retrieve chat history for a specific date.
 
-**Response:**
+**Query Parameters:**
+- `date` (required) - Date in YYYY-MM-DD format
+
+**Example Request:**
+```bash
+GET /api/profile/history?date=2026-01-26
+```
+
+**Response (200 OK):**
 ```json
 {
   "success": true,
@@ -237,18 +264,46 @@ Retrieve chat history for a specific date.
     {
       "id": 1,
       "entry": "2026-01-26T05:00:00",
-      "userprompt": "User message...",
-      "chatresponse": "Bot response..."
+      "entry_date": "2026-01-26",
+      "userprompt": "Generate a blog about car accidents",
+      "chatresponse": "# Car Accident Guide\n\n[Blog content...]"
+    },
+    {
+      "id": 2,
+      "entry": "2026-01-26T06:30:00",
+      "entry_date": "2026-01-26",
+      "userprompt": "Generate a health blog about nutrition",
+      "chatresponse": "# Nutrition Guide\n\n[Blog content...]"
     }
   ]
 }
 ```
 
-### GET `/api/stats/tokens/month`
+**Error Response (404 Not Found):**
+```json
+{
+  "success": false,
+  "code": "NO_ROWS_FOR_DATE",
+  "message": "No profileHistory rows found for the given entry_date.",
+  "requested_date": "2026-01-26",
+  "diagnostics": {
+    "total_rows": 150,
+    "utc_match": 0,
+    "pk_match": 0
+  },
+  "hint": "If utc_match > 0 or pk_match > 0, your data exists but entry_date does not match the selected date due to timezone/date derivation."
+}
+```
 
-Get token statistics for the current month.
+---
 
-**Response:**
+#### 3. Get Token Statistics
+
+**GET** `/api/stats/tokens/month`
+
+Get token usage statistics for the current month.
+
+**Response (200 OK):**
 ```json
 {
   "success": true,
@@ -258,16 +313,44 @@ Get token statistics for the current month.
       "day": "01",
       "input_words": 150,
       "output_words": 1200
+    },
+    {
+      "day": "02",
+      "input_words": 200,
+      "output_words": 1500
+    },
+    {
+      "day": "03",
+      "input_words": 180,
+      "output_words": 1350
     }
   ]
 }
 ```
 
-### GET `/api/db/table/<table_name>`
+---
 
-View database table contents (excludes `profilehistory`).
+#### 4. View Database Table
 
-**Response:**
+**GET** `/api/db/table/<table_name>`
+
+View contents of a database table (excludes `profilehistory` for privacy).
+
+**Path Parameters:**
+- `table_name` (required) - Name of the table to view
+
+**Available Tables:**
+- `blogdata` - Complete blog posts
+- `blogparts` - Individual blog sections
+- `promptdata` - Prompt templates
+- `progress` - Daily progress tracking
+
+**Example Request:**
+```bash
+GET /api/db/table/blogdata
+```
+
+**Response (200 OK):**
 ```json
 {
   "success": true,
@@ -275,18 +358,54 @@ View database table contents (excludes `profilehistory`).
     "name": "blogdata",
     "columns": ["blogID", "blogText"],
     "row_count": 20,
-    "rows": [...]
+    "rows": [
+      {
+        "blogID": 1,
+        "blogText": "# Health Blog Example\n\n[Content...]"
+      },
+      {
+        "blogID": 2,
+        "blogText": "# Another Health Blog\n\n[Content...]"
+      }
+    ]
   }
 }
 ```
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "success": false,
+  "code": "TABLE_EXCLUDED",
+  "message": "This table is excluded from DB views.",
+  "table": "profilehistory"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "success": false,
+  "code": "UNKNOWN_TABLE",
+  "message": "Table not found.",
+  "table": "nonexistent_table",
+  "available": ["blogdata", "blogparts", "promptdata", "progress"]
+}
+```
+
+---
 
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+**Important Notice:** This system is designed specifically for blog writing purposes only, for the specific client's needs as they requested.
+
+---
+
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! To contribute:
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
@@ -294,11 +413,38 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📧 Contact
+### Coding Standards
 
-Email: ibrahimbeaconarion@gmail.com
+- Follow PEP 8 style guide for Python code
+- Use meaningful variable and function names
+- Add docstrings to all functions and classes
+- Write unit tests for new features
+- Update documentation for API changes
 
 ---
 
-**Note:** This project is under active development. The AI integration layer is currently being implemented. The application framework, database layer, and frontend are fully functional.
+## 📧 Contact
 
+**Ibrahim Hussain**  
+Email: [ibrahimbeaconarion@gmail.com](mailto:ibrahimbeaconarion@gmail.com)
+
+**Project Link:** [https://github.com/ib-hussain/writers-block](https://github.com/ib-hussain/writers-block)
+
+---
+
+## 🙏 Acknowledgments
+
+- [Flask](https://flask.palletsprojects.com/) - Web framework
+- [LangChain](https://www.langchain.com/) - LLM framework
+- [PostgreSQL](https://www.postgresql.org/) - Database
+- [Render](https://render.com/) - Hosting platform
+
+---
+
+<div align="center">
+
+**Made with ❤️ for content creators**
+
+⭐ Star this repo if you find it helpful!
+
+</div>
