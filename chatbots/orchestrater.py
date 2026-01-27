@@ -172,7 +172,7 @@ def callAgents(
 
     write_profile_history(used_prompt, final_output)
     mark_progress("writing")
-
+    
     duration = round(time.time() - start, 2)
     print(f"[Orchestrator] Completed in {duration} seconds.")
 

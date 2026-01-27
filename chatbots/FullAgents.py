@@ -19,16 +19,12 @@ try:
 except Exception:
     pass
 
-# ----------------------------
-# CONFIG / CONSTANTS
-# ----------------------------
 DEBUGGING_MODE = True
 NULL_STRING = " "
 
 FULL_TEXT_MAX_TOKENS = 3584
 FULL_TEXT_MIN_TOKENS = 1792
 
-# Approx conversion: 1 token ~ 5 chars (consistent with SingularAgents)
 _CHARS_PER_TOKEN = 5
 
 def _tok_to_char(n_tokens: int) -> int:
@@ -49,6 +45,7 @@ HIGHEST PRIORITY RULES:
 - Preserve placeholders exactly as-is when they appear (e.g., COMPANY_NAME, CALL_NUMBER, LINK).
 - Remove repetition, normalise tone, and ensure the final piece reads as one coherent blog/page.
 - Do not reference internal pipeline mechanics or agent names (e.g., “Introduction Agent”).
+- Do NOT output raw variable assignment lines (e.g., "COMPANY_EMPLOYEE = ...") in the final answer.
 - Produce a clean structure with headings and subheadings where appropriate.
 
 LENGTH TARGET:
@@ -64,14 +61,21 @@ _LABELS_IN_ORDER = [
     "Integrate References Agent:",
 ]
 
-# ----------------------------
-# LLM factory (Together)
-# ----------------------------
+# Canonical business vars you actually want (keep last occurrence only)
+_CANON_VARS = [
+    "COMPANY_NAME",
+    "CALL_NUMBER",
+    "ADDRESS",
+    "STATE_NAME",
+    "LINK",
+    "COMPANY_EMPLOYEE",
+    "USER_MESSAGE",
+]
+
 def _make_llm(temperature: float, max_tokens: int) -> Together:
     api_key = os.getenv("TOGETHER_API_KEY")
     if not api_key:
         raise RuntimeError("TOGETHER_API_KEY is not set in environment.")
-
     return Together(
         model=COMPILER_MODEL,
         temperature=temperature,
@@ -79,9 +83,6 @@ def _make_llm(temperature: float, max_tokens: int) -> Together:
         max_tokens=max_tokens,
     )
 
-# ----------------------------
-# Retry/backoff for Together transient failures
-# ----------------------------
 def _is_transient_provider_error(msg: str) -> bool:
     m = (msg or "").lower()
     return (
@@ -90,8 +91,10 @@ def _is_transient_provider_error(msg: str) -> bool:
         or "service unavailable" in m
         or "timeout" in m
         or "temporarily" in m
-        or "rate limit" in m
         or "overloaded" in m
+        or "rate limit" in m
+        or "connection already closed" in m
+        or "connection reset" in m
     )
 
 def _invoke_with_retries(llm: Together, messages, *, attempts: int = 4) -> str:
@@ -102,16 +105,12 @@ def _invoke_with_retries(llm: Together, messages, *, attempts: int = 4) -> str:
             return out.content if hasattr(out, "content") else str(out)
         except Exception as e:
             last_err = e
-            msg = str(e)
-            if (not _is_transient_provider_error(msg)) or (i == attempts - 1):
+            if (not _is_transient_provider_error(str(e))) or (i == attempts - 1):
                 raise
             sleep_s = (0.5 * (2 ** i)) + random.uniform(0.0, 0.35)
             time.sleep(sleep_s)
     raise last_err  # pragma: no cover
 
-# ----------------------------
-# Draft extraction / cleaning
-# ----------------------------
 def _try_extract_content_md(maybe_json: str) -> Optional[str]:
     s = (maybe_json or "").strip()
     try:
@@ -179,7 +178,6 @@ def _extract_sections_by_labels(full_prompt: str) -> str:
         return ""
 
     text = full_prompt
-
     indices = []
     for label in _LABELS_IN_ORDER:
         idx = text.find(label)
@@ -192,7 +190,6 @@ def _extract_sections_by_labels(full_prompt: str) -> str:
     indices.sort(key=lambda x: x[0])
     cleaned = text
 
-    # Replace blocks from the end to preserve indices
     for i in range(len(indices) - 1, -1, -1):
         start_idx, label = indices[i]
         content_start = start_idx + len(label)
@@ -208,36 +205,67 @@ def _extract_sections_by_labels(full_prompt: str) -> str:
     cleaned = _replace_any_json_objects(cleaned)
     return cleaned
 
-# ----------------------------
-# Generation + validation/repair
-# ----------------------------
+def _strip_assignment_lines_keep_canon(prompt: str) -> str:
+    """
+    Removes spammy/injected lines like 'COMPANY_EMPLOYEE = John' repeated many times.
+    Keeps only the last occurrence of each canonical var listed in _CANON_VARS.
+    """
+    if not prompt:
+        return ""
+
+    lines = prompt.splitlines()
+    canon_last: Dict[str, str] = {}
+
+    # First pass: record last value for canonical vars
+    for line in lines:
+        s = line.strip()
+        for k in _CANON_VARS:
+            prefix = f"{k} ="
+            if s.startswith(prefix):
+                canon_last[k] = s
+
+    # Second pass: remove ALL assignment-looking lines "WORD = ..."
+    # but keep canonical vars only once (appended at end).
+    kept: list[str] = []
+    for line in lines:
+        s = line.strip()
+        if " = " in s and s.split("=", 1)[0].strip().isidentifier():
+            # Drop all assignment-like lines from the main body
+            continue
+        kept.append(line)
+
+    # Append canonical vars at end (stable order) using last seen values
+    kept.append("")
+    for k in _CANON_VARS:
+        if k in canon_last:
+            kept.append(canon_last[k])
+
+    return "\n".join(kept).strip()
+
 def _generate_markdown(llm: Together, prompt: str) -> str:
-    messages = [
-        SystemMessage(content=SYSTEM_DIRECTIVE_COMPILER),
-        HumanMessage(content=prompt),
-    ]
+    messages = [SystemMessage(content=SYSTEM_DIRECTIVE_COMPILER), HumanMessage(content=prompt)]
     return _invoke_with_retries(llm, messages, attempts=4)
 
 def _validate_or_repair(llm: Together, raw_md: str, cleaned_prompt: str) -> str:
     md = (raw_md or "").strip()
 
-    # Hard constraint: no code fences
+    # No code fences
     if "```" in md:
-        repair_system = SYSTEM_DIRECTIVE_COMPILER + f"""
+        repair_system = SYSTEM_DIRECTIVE_COMPILER + """
 REPAIR MODE:
-You produced output that violates constraints (e.g., code blocks).
-Rewrite it as plain Markdown without code fences or HTML.
-Keep meaning and structure. Return Markdown only.
+Rewrite the output as plain Markdown without code fences or HTML.
+Return Markdown only.
 """
         md = _generate_markdown(llm, f"{repair_system}\n\nORIGINAL_OUTPUT:\n{raw_md}\n\nSOURCE_PROMPT:\n{cleaned_prompt}")
 
+    # Length control
     ln = len(md)
 
     if ln > FULL_MAX_CHARS:
         compress_system = SYSTEM_DIRECTIVE_COMPILER + f"""
 COMPRESSION MODE:
-Your output is too long ({ln} chars). Rewrite to fit within {FULL_MAX_CHARS} chars.
-Keep key information, remove redundancy, tighten phrasing. Return Markdown only.
+Rewrite to fit within {FULL_MAX_CHARS} characters. Keep key information.
+Return Markdown only.
 """
         md2 = _generate_markdown(llm, f"{compress_system}\n\nORIGINAL_OUTPUT:\n{md}\n\nSOURCE_PROMPT:\n{cleaned_prompt}").strip()
         if md2:
@@ -248,19 +276,22 @@ Keep key information, remove redundancy, tighten phrasing. Return Markdown only.
     elif ln < FULL_MIN_CHARS:
         expand_system = SYSTEM_DIRECTIVE_COMPILER + f"""
 EXPANSION MODE:
-Your output is too short ({ln} chars). Expand to at least {FULL_MIN_CHARS} chars.
-Add structure and clarifying detail, but do NOT invent new facts. Return Markdown only.
+Expand to at least {FULL_MIN_CHARS} characters WITHOUT inventing new facts.
+Return Markdown only.
 """
         md2 = _generate_markdown(llm, f"{expand_system}\n\nORIGINAL_OUTPUT:\n{md}\n\nSOURCE_PROMPT:\n{cleaned_prompt}").strip()
         if md2:
             md = md2
-        # If still short, accept; do not loop.
 
-    return md.strip()
+    # Final: ensure we didn't accidentally output assignment spam
+    filtered_lines = []
+    for line in md.splitlines():
+        s = line.strip()
+        if " = " in s and s.split("=", 1)[0].strip().isidentifier():
+            continue
+        filtered_lines.append(line)
+    return "\n".join(filtered_lines).strip()
 
-# ----------------------------
-# LangGraph micro-graph: prepare -> generate -> validate -> END
-# ----------------------------
 class _State(TypedDict, total=False):
     llm: Any
     prompt: str
@@ -272,17 +303,17 @@ def _build_graph():
     g = StateGraph(_State)
 
     def node_prepare(state: _State) -> _State:
-        state["cleaned_prompt"] = _extract_sections_by_labels(state["prompt"])
+        cleaned = _extract_sections_by_labels(state["prompt"])
+        cleaned = _strip_assignment_lines_keep_canon(cleaned)
+        state["cleaned_prompt"] = cleaned
         return state
 
     def node_generate(state: _State) -> _State:
-        llm = state["llm"]
-        state["raw_md"] = _generate_markdown(llm, state["cleaned_prompt"])
+        state["raw_md"] = _generate_markdown(state["llm"], state["cleaned_prompt"])
         return state
 
     def node_validate(state: _State) -> _State:
-        llm = state["llm"]
-        state["final_md"] = _validate_or_repair(llm, state["raw_md"], state["cleaned_prompt"])
+        state["final_md"] = _validate_or_repair(state["llm"], state["raw_md"], state["cleaned_prompt"])
         return state
 
     g.add_node("prepare", node_prepare)
@@ -298,11 +329,7 @@ def _build_graph():
 
 _GRAPH = _build_graph()
 
-# ----------------------------
-# Public API (signature preserved)
-# ----------------------------
 def Full_Blog_Writer(prompt: str, temperature: float) -> Tuple[str, str]:
     llm = _make_llm(temperature=temperature, max_tokens=FULL_TEXT_MAX_TOKENS)
-    state: _State = {"llm": llm, "prompt": prompt}
-    out = _GRAPH.invoke(state)
+    out = _GRAPH.invoke({"llm": llm, "prompt": prompt})
     return prompt, out["final_md"]

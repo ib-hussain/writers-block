@@ -26,7 +26,6 @@ except Exception:
 DEBUGGING_MODE = True
 NULL_STRING = " "
 
-# NOTE: token budgets; we validate using char proxy for coarse bounds.
 INTRO_MAX_TOKENS = 640
 INTRO_MIN_TOKENS = 128
 
@@ -45,11 +44,10 @@ SHORT_CTA_MIN_TOKENS = 64
 REFERENCES_MAX_TOKENS = 512
 REFERENCES_MIN_TOKENS = 128
 
-# (Not used in this file directly, but kept for parity with your constants)
 FULL_TEXT_MAX_TOKENS = 3584
 FULL_TEXT_MIN_TOKENS = 1792
 
-# Approx conversion: 1 token ~ 5 chars (your current heuristic)
+# Approx conversion: 1 token ~ 5 chars (coarse)
 _CHARS_PER_TOKEN = 5
 
 def _tok_to_char(n_tokens: int) -> int:
@@ -58,18 +56,29 @@ def _tok_to_char(n_tokens: int) -> int:
 SYSTEM_DIRECTIVE = """You are a section-writing sub-agent in a multi-agent pipeline.
 
 HIGHEST PRIORITY RULES:
-- Output MUST be a SINGLE valid JSON object and NOTHING ELSE.
-- Do NOT wrap JSON in markdown fences.
-- JSON schema:
+1) Output MUST be a SINGLE valid JSON object and NOTHING ELSE.
+2) Do NOT wrap JSON in markdown fences.
+3) JSON schema EXACTLY:
 {
   "status": "ok" | "needs_review",
-  "section_id": string,
-  "content_md": string,
-  "warnings": [string]
+  "section_id": "<string>",
+  "content_md": "<string markdown>",
+  "warnings": ["<string>", "..."]
 }
-- content_md must be compiler-safe markdown: no HTML, no code blocks, no templating syntax.
-- Do not reference other sections (no “as above/below”).
-- If information is missing, write best-effort and add a warning.
+4) content_md must be compiler-safe markdown:
+   - No HTML
+   - No code blocks (``` or indentation-based)
+   - No templating syntax
+5) Do not reference other sections (no “as above/below”).
+6) If information is missing, write best-effort and add a warning.
+
+FORMAT EXAMPLE (follow exactly; return JSON only):
+{
+  "status": "ok",
+  "section_id": "intro",
+  "content_md": "## Heading\\nA direct answer in the first sentence.\\n\\nMore detail.",
+  "warnings": []
+}
 
 Token discipline:
 - Keep content_md concise and within the section's expected size.
@@ -119,7 +128,7 @@ def _make_llm(temperature: float, max_tokens: int, model: str) -> Together:
     )
 
 # ----------------------------
-# Retry/backoff for Together transient failures
+# Retry/backoff (Together transient failures)
 # ----------------------------
 def _is_transient_provider_error(msg: str) -> bool:
     m = (msg or "").lower()
@@ -129,8 +138,8 @@ def _is_transient_provider_error(msg: str) -> bool:
         or "service unavailable" in m
         or "timeout" in m
         or "temporarily" in m
-        or "rate limit" in m
         or "overloaded" in m
+        or "rate limit" in m
     )
 
 def _invoke_with_retries(llm: Together, messages, *, attempts: int = 4) -> str:
@@ -141,8 +150,7 @@ def _invoke_with_retries(llm: Together, messages, *, attempts: int = 4) -> str:
             return out.content if hasattr(out, "content") else str(out)
         except Exception as e:
             last_err = e
-            msg = str(e)
-            if (not _is_transient_provider_error(msg)) or (i == attempts - 1):
+            if (not _is_transient_provider_error(str(e))) or (i == attempts - 1):
                 raise
             sleep_s = (0.4 * (2 ** i)) + random.uniform(0.0, 0.25)
             time.sleep(sleep_s)
@@ -191,15 +199,17 @@ def _validate_or_repair(llm: Together, section_id: str, raw: str) -> str:
         ln = len(parsed["content_md"])
         if ln < min_c:
             parsed["warnings"].append(f"content_md shorter than target ({ln} < {min_c}).")
+            parsed["status"] = "needs_review"
         if ln > max_c:
             parsed["content_md"] = parsed["content_md"][:max_c].rstrip()
             parsed["warnings"].append(f"content_md trimmed to max_chars={max_c}.")
+            parsed["status"] = "needs_review"
         return json.dumps(parsed, ensure_ascii=False)
 
-    # One repair attempt (same model; directive forces JSON). Apply retries here too.
+    # Repair attempt: IMPORTANT—use retries here as well
     repair_system = SYSTEM_DIRECTIVE + f"""
 REPAIR MODE:
-You will be given invalid output. Convert it into a SINGLE valid JSON object matching the schema exactly.
+Convert the following INVALID output into a SINGLE valid JSON object matching the schema.
 Preserve meaning. Do not add new facts. section_id must be "{section_id}".
 Return JSON only.
 """
@@ -222,14 +232,16 @@ Return JSON only.
     ln2 = len(parsed2["content_md"])
     if ln2 < min_c:
         parsed2["warnings"].append(f"content_md shorter than target ({ln2} < {min_c}).")
+        parsed2["status"] = "needs_review"
     if ln2 > max_c:
         parsed2["content_md"] = parsed2["content_md"][:max_c].rstrip()
         parsed2["warnings"].append(f"content_md trimmed to max_chars={max_c}.")
+        parsed2["status"] = "needs_review"
 
     return json.dumps(parsed2, ensure_ascii=False)
 
 # ----------------------------
-# LangGraph micro-graph: generate -> validate/repair -> END
+# LangGraph micro-graph: generate -> validate -> END
 # ----------------------------
 class _State(TypedDict, total=False):
     llm: Any
@@ -242,16 +254,11 @@ def _build_graph():
     g = StateGraph(_State)
 
     def node_generate(state: _State) -> _State:
-        llm = state["llm"]
-        section_id = state["section_id"]
-        prompt = state["prompt"]
-        state["raw"] = _generate_json(llm, section_id, prompt)
+        state["raw"] = _generate_json(state["llm"], state["section_id"], state["prompt"])
         return state
 
     def node_validate(state: _State) -> _State:
-        llm = state["llm"]
-        section_id = state["section_id"]
-        state["final_json"] = _validate_or_repair(llm, section_id, state["raw"])
+        state["final_json"] = _validate_or_repair(state["llm"], state["section_id"], state["raw"])
         return state
 
     g.add_node("generate", node_generate)
@@ -272,8 +279,8 @@ def _run_section_agent(
     fallback_model: Optional[str] = None
 ) -> Tuple[str, str]:
     """
-    Runs section agent with retries. If transient provider failures persist,
-    optionally retry with fallback_model.
+    Run section agent. If transient provider failures occur, retry on the same model,
+    then optionally try fallback_model (still within your allowed set).
     """
     llm = _make_llm(temperature=temperature, max_tokens=max_tokens, model=model)
     state: _State = {"llm": llm, "section_id": section_id, "prompt": prompt}
@@ -282,8 +289,7 @@ def _run_section_agent(
         out = _GRAPH.invoke(state)
         return prompt, out["final_json"]
     except Exception as e:
-        msg = str(e)
-        if (not _is_transient_provider_error(msg)) or (not fallback_model) or (fallback_model == model):
+        if (not _is_transient_provider_error(str(e))) or (not fallback_model) or (fallback_model == model):
             raise
 
         llm2 = _make_llm(temperature=temperature, max_tokens=max_tokens, model=fallback_model)
@@ -292,7 +298,7 @@ def _run_section_agent(
         return prompt, out2["final_json"]
 
 # ----------------------------
-# Public agents (signature preserved, models unchanged)
+# Public agent functions (signature preserved, models unchanged)
 # ----------------------------
 def Intro_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     model_a = "Qwen/Qwen3-Next-80B-A3B-Instruct"
@@ -323,7 +329,6 @@ def Business_Description_Agent(prompt: str, temperature: float) -> Tuple[str, st
     return _run_section_agent("business_description", prompt, temperature, model=model, max_tokens=BUISNESS_DESC_MAX_TOKENS, fallback_model=fallback)
 
 def Short_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    # Single model; no fallback requested.
     return _run_section_agent(
         "short_cta",
         prompt,
@@ -334,8 +339,8 @@ def Short_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     )
 
 def References_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    model_a = "openai/gpt-oss-20B"
-    model_b = "openai/gpt-oss-120b"
+    model_a = "openai/gpt-oss-120b"
+    model_b = "OpenAI/gpt-oss-20B"
     model = _choose_model("integrate_references", model_a=model_a, model_b=model_b)
     fallback = model_b if model == model_a else model_a
     return _run_section_agent("integrate_references", prompt, temperature, model=model, max_tokens=REFERENCES_MAX_TOKENS, fallback_model=fallback)

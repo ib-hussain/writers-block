@@ -425,4 +425,4 @@ def handle_chat():
         return json_error("CHAT_FAILED", "Failed to process chat message", 500, details=str(e))
 # MAIN (local dev)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000, debug=DEBUGGING_MODE)
+    app.run(host="0.0.0.0", port=10000, debug=False)
