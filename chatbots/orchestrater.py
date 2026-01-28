@@ -173,6 +173,7 @@ def generate_blog_pipeline(
     # 3) Call compiler agent
     _log("Calling final compiler agent...")
     try:
+        _log("About to call Full_Blog_Writer() ...")
         _, final_blog = Full_Blog_Writer(compiler_prompt, temperature)
         final_blog = (final_blog or "").strip()
         _log("Final compiler agent completed | Output: \n" + final_blog)

@@ -1,4 +1,5 @@
 # chatbots/FullAgents.py
+print("[FullAgents] LOADED FROM:", __file__)
 from __future__ import annotations
 
 import os
@@ -241,6 +242,8 @@ def Full_Blog_Writer(prompt: str, temperature: float) -> Tuple[str, str]:
       <<DRAFT_*>> blocks
     Returns: (used_prompt, compiled_markdown)
     """
+    print("[FullAgents] Full_Blog_Writer CALLED")
+
     llm = _make_llm(temperature=temperature, max_tokens=FULL_TEXT_MAX_TOKENS)
 
     tagged = _parse_tagged_prompt(prompt)
