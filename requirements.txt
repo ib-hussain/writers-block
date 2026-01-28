@@ -1,12 +1,36 @@
+# ============================================================================
+# Production Dependencies for Writer's Block
+# IMPORTANT: All versions are pinned to ensure deployment stability
+# ============================================================================
+
+# Core Web Framework - EXACT versions from your working machine
 Flask==3.1.0
-Werkzeug==3.0.1
-Jinja2==3.1.6
+Werkzeug==3.1.3  # Updated to match what you actually have
+Jinja2==3.1.6    # From your local
+
+# Database - PostgreSQL
 psycopg2-binary==2.9.10
+
+# Backend Services
 supabase==1.1.1
+
+# AI/LLM - LangChain Ecosystem
 langchain-core==0.3.74
 langchain-together==0.3.1
 langchain-community==0.3.27
+
+# HTTP & Networking
 requests==2.31.0
 httpx==0.28.1
+
+# Environment & Configuration
 python-dotenv==1.1.1
+
+# Type Hints & Extensions
 typing-extensions==4.9.0
+
+# Additional dependencies that Flask requires
+blinker==1.9.0
+click==8.1.8
+itsdangerous==2.2.0
+MarkupSafe==2.1.5
