@@ -1,6 +1,6 @@
 # chatbots/FullAgents.py
-print("[FullAgents] LOADED FROM:", __file__)
 from __future__ import annotations
+print("[FullAgents] LOADED FROM:", __file__)
 
 import os
 import time
