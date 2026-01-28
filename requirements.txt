@@ -14,10 +14,9 @@ psycopg2-binary==2.9.9
 supabase==1.1.1
 
 # AI/LLM - LangChain Ecosystem
-langchain-core==0.1.24
-langchain-together==0.1.4
+langchain-core>=0.2.17
+langchain-together>=0.1.4
 langchain-community==0.0.20
-langgraph==0.0.33
 
 # HTTP & Networking
 requests==2.31.0
