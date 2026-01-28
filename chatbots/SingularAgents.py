@@ -2,17 +2,14 @@
 from __future__ import annotations
 
 import os
-import json
+import re
 import time
 import random
 import threading
-from typing import Tuple, Dict, Any, Optional
+from typing import Tuple, Optional, Dict, Any, List
 
-from typing_extensions import TypedDict
-
-from langchain_together import Together
 from langchain_core.messages import SystemMessage, HumanMessage
-from langgraph.graph import StateGraph, END
+from langchain_together import Together
 
 try:
     from dotenv import load_dotenv
@@ -20,292 +17,349 @@ try:
 except Exception:
     pass
 
-# ----------------------------
-# CONFIG / CONSTANTS
-# ----------------------------
+
+# ============================================================
+# CONFIG
+# ============================================================
 DEBUGGING_MODE = True
-NULL_STRING = " "
 
 INTRO_MAX_TOKENS = 640
-INTRO_MIN_TOKENS = 128
-
 FINAL_CTA_MAX_TOKENS = 512
-FINAL_CTA_MIN_TOKENS = 128
-
 FAQ_MAX_TOKENS = 1024
-FAQ_MIN_TOKENS = 512
-
-BUISNESS_DESC_MAX_TOKENS = 1024
-BUISNESS_DESC_MIN_TOKENS = 128
-
+BUSINESS_DESC_MAX_TOKENS = 768
 SHORT_CTA_MAX_TOKENS = 256
-SHORT_CTA_MIN_TOKENS = 64
-
 REFERENCES_MAX_TOKENS = 512
-REFERENCES_MIN_TOKENS = 128
 
-FULL_TEXT_MAX_TOKENS = 3584
-FULL_TEXT_MIN_TOKENS = 1792
+MAX_ATTEMPTS = 4
+BASE_BACKOFF_S = 0.6
 
-# Approx conversion: 1 token ~ 5 chars (coarse)
-_CHARS_PER_TOKEN = 5
 
-def _tok_to_char(n_tokens: int) -> int:
-    return max(0, int(n_tokens) * _CHARS_PER_TOKEN)
-
-SYSTEM_DIRECTIVE = """You are a section-writing sub-agent in a multi-agent pipeline.
-
-HIGHEST PRIORITY RULES:
-1) Output MUST be a SINGLE valid JSON object and NOTHING ELSE.
-2) Do NOT wrap JSON in markdown fences.
-3) JSON schema EXACTLY:
-{
-  "status": "ok" | "needs_review",
-  "section_id": "<string>",
-  "content_md": "<string markdown>",
-  "warnings": ["<string>", "..."]
-}
-4) content_md must be compiler-safe markdown:
-   - No HTML
-   - No code blocks (``` or indentation-based)
-   - No templating syntax
-5) Do not reference other sections (no “as above/below”).
-6) If information is missing, write best-effort and add a warning.
-
-FORMAT EXAMPLE (follow exactly; return JSON only):
-{
-  "status": "ok",
-  "section_id": "intro",
-  "content_md": "## Heading\\nA direct answer in the first sentence.\\n\\nMore detail.",
-  "warnings": []
-}
-
-Token discipline:
-- Keep content_md concise and within the section's expected size.
+# ============================================================
+# GUARDRAILS
+# ============================================================
+_COMMON_GUARDRAILS = """GLOBAL RULES (MANDATORY):
+- Output MUST be plain Markdown ONLY (single string).
+- Do NOT output JSON.
+- Do NOT output code fences (```), HTML tags, or XML.
+- Do NOT include meta commentary (e.g., "Here is...", "Assistant:", "Response:").
+- Do NOT include variable assignment lines (e.g., "COMPANY_NAME = ...").
+- Preserve placeholders exactly as-is when they appear in the prompt:
+  {COMPANY_NAME}, {CALL_NUMBER}, {ADDRESS}, {LINK}, {STATE_NAME}, {COMPANY_EMPLOYEE}.
+- Do NOT invent legal/medical specifics:
+  - No statute numbers, filing deadlines, coverage limits, policy limits, jurisdiction rules, or medical claims
+    unless explicitly present in the prompt.
+- If you are unsure, stay general and practical; do NOT hallucinate.
 """
 
-SECTION_SPECS: Dict[str, Dict[str, int]] = {
-    "intro": {"min_chars": _tok_to_char(INTRO_MIN_TOKENS), "max_chars": _tok_to_char(INTRO_MAX_TOKENS)},
-    "final_cta": {"min_chars": _tok_to_char(FINAL_CTA_MIN_TOKENS), "max_chars": _tok_to_char(FINAL_CTA_MAX_TOKENS)},
-    "faqs": {"min_chars": _tok_to_char(FAQ_MIN_TOKENS), "max_chars": _tok_to_char(FAQ_MAX_TOKENS)},
-    "business_description": {"min_chars": _tok_to_char(BUISNESS_DESC_MIN_TOKENS), "max_chars": _tok_to_char(BUISNESS_DESC_MAX_TOKENS)},
-    "short_cta": {"min_chars": _tok_to_char(SHORT_CTA_MIN_TOKENS), "max_chars": _tok_to_char(SHORT_CTA_MAX_TOKENS)},
-    "integrate_references": {"min_chars": _tok_to_char(REFERENCES_MIN_TOKENS), "max_chars": _tok_to_char(REFERENCES_MAX_TOKENS)},
+_SECTION_SYSTEM: Dict[str, str] = {
+    "intro": f"""You write blog introductions for legal/health businesses.
+{_COMMON_GUARDRAILS}
+
+SECTION RULES:
+- 1–2 short paragraphs.
+- Must be aligned to the user message and business context in the prompt.
+- Hook + promise: tell the reader what they will learn.
+- Keep it concrete. No drifting to unrelated topics.
+""",
+
+    "final_cta": f"""You write the FINAL Call-To-Action for a legal/health blog.
+{_COMMON_GUARDRAILS}
+
+SECTION RULES:
+- Start with a heading (## or ###).
+- 1–2 short paragraphs.
+- Clear next step (consultation / call / visit) using placeholders if present.
+- No exaggerated claims ("guarantee", "best", "win every case") unless provided.
+""",
+
+    "faqs": f"""You write an FAQ section for a legal/health blog.
+{_COMMON_GUARDRAILS}
+
+SECTION RULES:
+- 4–7 Q/A pairs.
+- Each question as a subheading: "### Question?"
+- Each answer: 1–3 sentences; must start with a direct answer.
+- If the prompt contains explicit FAQ questions, answer those. Otherwise, generate relevant FAQs from the user message.
+""",
+
+    "business_description": f"""You write a business description block for the company.
+{_COMMON_GUARDRAILS}
+
+SECTION RULES:
+- Heading: "## About {{COMPANY_NAME}}" OR "## About the Firm" (use placeholders if provided).
+- 1–2 paragraphs only.
+- Mention location/state and what the company helps with, based on prompt.
+- Keep it credible, specific, and aligned to the blog topic.
+""",
+
+    "short_cta": f"""You write a SHORT CTA snippet that fits mid-article.
+{_COMMON_GUARDRAILS}
+
+SECTION RULES:
+- 1–2 very short sentences (or 2 short lines).
+- Encourage a consultation/contact.
+- Do NOT include phone/address unless the prompt explicitly requires it.
+""",
+
+    "integrate_references": f"""You write a references/resources block.
+{_COMMON_GUARDRAILS}
+
+SECTION RULES:
+- Output a section:
+  "## References" then 3–6 bullet points.
+- If prompt provides a {{SOURCE}} or reference hints, use them.
+- If no sources are provided, output generic credible source CATEGORIES (no fabricated URLs):
+  e.g., "State health department guidance", "CDC / NIH topic page", "Insurance policy documents".
+- Do NOT invent URLs, statute numbers, case citations, or journal articles.
+""",
 }
 
-# ----------------------------
-# Thread-safe model alternation
-# ----------------------------
+
+# ============================================================
+# ROUND-ROBIN MODEL CHOICE (A/B)
+# ============================================================
 _model_toggle_lock = threading.Lock()
-_model_toggle_state: Dict[str, int] = {
-    "intro": 0,
-    "final_cta": 0,
-    "faqs": 0,
-    "business_description": 0,
-    "integrate_references": 0,
-}
+_model_toggle_state: Dict[str, int] = {}
 
-def _choose_model(section_id: str, model_a: str, model_b: Optional[str]) -> str:
-    if not model_b:
-        return model_a
+
+def _choose_model(section_id: str, model_a: str, model_b: str) -> str:
     with _model_toggle_lock:
         cur = _model_toggle_state.get(section_id, 0)
         _model_toggle_state[section_id] = 1 - cur
         return model_a if cur == 0 else model_b
 
-# ----------------------------
-# LLM factory
-# ----------------------------
-def _make_llm(temperature: float, max_tokens: int, model: str) -> Together:
-    api_key = os.getenv("TOGETHER_API_KEY")
+
+# ============================================================
+# LLM WRAPPER
+# ============================================================
+def _make_llm(model: str, temperature: float, max_tokens: int) -> Together:
+    api_key = os.getenv("TOGETHER_API_KEY") or os.getenv("TOGETHERAI_API_KEY")
     if not api_key:
-        raise RuntimeError("TOGETHER_API_KEY is not set in environment.")
-    return Together(
-        model=model,
-        temperature=temperature,
-        together_api_key=str(api_key),
-        max_tokens=max_tokens,
-    )
+        raise RuntimeError("Missing TOGETHER_API_KEY in environment.")
 
-# ----------------------------
-# Retry/backoff (Together transient failures)
-# ----------------------------
-def _is_transient_provider_error(msg: str) -> bool:
-    m = (msg or "").lower()
-    return (
-        "error 500" in m
-        or "http 500" in m
-        or "service unavailable" in m
-        or "timeout" in m
-        or "temporarily" in m
-        or "overloaded" in m
-        or "rate limit" in m
-    )
-
-def _invoke_with_retries(llm: Together, messages, *, attempts: int = 4) -> str:
-    last_err: Optional[Exception] = None
-    for i in range(attempts):
-        try:
-            out = llm.invoke(messages)
-            return out.content if hasattr(out, "content") else str(out)
-        except Exception as e:
-            last_err = e
-            if (not _is_transient_provider_error(str(e))) or (i == attempts - 1):
-                raise
-            sleep_s = (0.4 * (2 ** i)) + random.uniform(0.0, 0.25)
-            time.sleep(sleep_s)
-    raise last_err  # pragma: no cover
-
-# ----------------------------
-# Generation + validation
-# ----------------------------
-def _generate_json(llm: Together, section_id: str, prompt: str) -> str:
-    sys = SYSTEM_DIRECTIVE + f"\nSECTION_ID = {section_id}\n"
-    messages = [SystemMessage(content=sys), HumanMessage(content=prompt)]
-    return _invoke_with_retries(llm, messages, attempts=4)
-
-def _try_parse_json(section_id: str, s: str) -> Optional[Dict[str, Any]]:
+    # Handle different param names across versions
     try:
-        obj = json.loads((s or "").strip())
-        if not isinstance(obj, dict):
-            return None
+        return Together(model=model, temperature=temperature, max_tokens=max_tokens, api_key=api_key)
+    except TypeError:
+        return Together(model=model, temperature=temperature, max_tokens=max_tokens, together_api_key=api_key)
 
-        required = {"status", "section_id", "content_md", "warnings"}
-        if not required.issubset(obj.keys()):
-            return None
 
-        if obj.get("section_id") != section_id:
-            obj["section_id"] = section_id
-
-        if obj.get("status") not in ("ok", "needs_review"):
-            obj["status"] = "needs_review"
-
-        if not isinstance(obj.get("warnings"), list):
-            obj["warnings"] = ["warnings field was not a list; normalised."]
-
-        if not isinstance(obj.get("content_md"), str):
-            return None
-
-        return obj
-    except Exception:
-        return None
-
-def _validate_or_repair(llm: Together, section_id: str, raw: str) -> str:
-    spec = SECTION_SPECS.get(section_id, {"min_chars": 200, "max_chars": 1600})
-    min_c, max_c = spec["min_chars"], spec["max_chars"]
-
-    parsed = _try_parse_json(section_id, raw)
-    if parsed is not None:
-        ln = len(parsed["content_md"])
-        if ln < min_c:
-            parsed["warnings"].append(f"content_md shorter than target ({ln} < {min_c}).")
-            parsed["status"] = "needs_review"
-        if ln > max_c:
-            parsed["content_md"] = parsed["content_md"][:max_c].rstrip()
-            parsed["warnings"].append(f"content_md trimmed to max_chars={max_c}.")
-            parsed["status"] = "needs_review"
-        return json.dumps(parsed, ensure_ascii=False)
-
-    # Repair attempt: IMPORTANT—use retries here as well
-    repair_system = SYSTEM_DIRECTIVE + f"""
-REPAIR MODE:
-Convert the following INVALID output into a SINGLE valid JSON object matching the schema.
-Preserve meaning. Do not add new facts. section_id must be "{section_id}".
-Return JSON only.
-"""
-    messages = [
-        SystemMessage(content=repair_system),
-        HumanMessage(content=f"INVALID_OUTPUT:\n{raw}")
+def _is_transient_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    transient = [
+        "timeout", "timed out", "temporarily", "rate limit", "429",
+        "connection", "disconnect", "overloaded", "try again",
+        "bad gateway", "502", "503", "504",
+        "server closed the connection unexpectedly",
     ]
-    repaired_text = _invoke_with_retries(llm, messages, attempts=3)
+    return any(x in msg for x in transient)
 
-    parsed2 = _try_parse_json(section_id, repaired_text)
-    if parsed2 is None:
-        fallback = {
-            "status": "needs_review",
-            "section_id": section_id,
-            "content_md": "",
-            "warnings": ["LLM output could not be repaired into valid JSON."],
-        }
-        return json.dumps(fallback, ensure_ascii=False)
 
-    ln2 = len(parsed2["content_md"])
-    if ln2 < min_c:
-        parsed2["warnings"].append(f"content_md shorter than target ({ln2} < {min_c}).")
-        parsed2["status"] = "needs_review"
-    if ln2 > max_c:
-        parsed2["content_md"] = parsed2["content_md"][:max_c].rstrip()
-        parsed2["warnings"].append(f"content_md trimmed to max_chars={max_c}.")
-        parsed2["status"] = "needs_review"
+def _invoke_with_retries(llm: Together, system_text: str, user_text: str, section_id: str) -> str:
+    last: Optional[Exception] = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            t0 = time.time()
+            out = llm.invoke([SystemMessage(content=system_text), HumanMessage(content=user_text)])
 
-    return json.dumps(parsed2, ensure_ascii=False)
+            if isinstance(out, str):
+                raw = out
+            elif hasattr(out, "content"):
+                raw = out.content or ""
+            else:
+                raw = str(out)
 
-# ----------------------------
-# LangGraph micro-graph: generate -> validate -> END
-# ----------------------------
-class _State(TypedDict, total=False):
-    llm: Any
-    section_id: str
-    prompt: str
-    raw: str
-    final_json: str
+            dt = (time.time() - t0) * 1000
+            if DEBUGGING_MODE:
+                print(f"[SingularAgents] {section_id} ok | attempt={attempt} | {dt:.0f}ms | chars={len(raw)}")
+            return raw
 
-def _build_graph():
-    g = StateGraph(_State)
+        except Exception as e:
+            last = e
+            if DEBUGGING_MODE:
+                print(f"[SingularAgents] {section_id} fail | attempt={attempt}/{MAX_ATTEMPTS} | err={e}")
+            if attempt == MAX_ATTEMPTS or not _is_transient_error(e):
+                break
+            time.sleep(BASE_BACKOFF_S * attempt + random.random() * 0.6)
 
-    def node_generate(state: _State) -> _State:
-        state["raw"] = _generate_json(state["llm"], state["section_id"], state["prompt"])
-        return state
+    raise RuntimeError(f"{section_id} failed after {MAX_ATTEMPTS} attempts: {last}")
 
-    def node_validate(state: _State) -> _State:
-        state["final_json"] = _validate_or_repair(state["llm"], state["section_id"], state["raw"])
-        return state
 
-    g.add_node("generate", node_generate)
-    g.add_node("validate", node_validate)
-    g.set_entry_point("generate")
-    g.add_edge("generate", "validate")
-    g.add_edge("validate", END)
-    return g.compile()
+# ============================================================
+# CLEANING + VALIDATION
+# ============================================================
+_TAG_BLOCK_RE = re.compile(r"<<[A-Z0-9_]+>>\n[\s\S]*?(?=\n<<[A-Z0-9_]+>>\n|\Z)", re.S)
 
-_GRAPH = _build_graph()
 
+def _strip_outer_quotes(t: str) -> str:
+    t = (t or "").strip()
+    if len(t) >= 2 and ((t[0] == '"' and t[-1] == '"') or (t[0] == "'" and t[-1] == "'")):
+        return t[1:-1].strip()
+    return t
+
+
+def _clean_output(text: str) -> str:
+    if not text:
+        return ""
+
+    t = text.strip()
+    t = re.sub(r"```[\s\S]*?```", "", t).strip()
+    t = re.sub(r"^(assistant|response|output|answer)\s*:\s*", "", t, flags=re.I).strip()
+    t = re.sub(r"^ASSISTANT[’']?S OUTPUT.*?:\s*", "", t, flags=re.I).strip()
+    t = re.sub(r"^\s*[A-Z_]{3,}\s*=\s*.*$", "", t, flags=re.M).strip()
+    t = re.sub(_TAG_BLOCK_RE, "", t).strip()
+    t = _strip_outer_quotes(t)
+    return t.strip()
+
+
+def _looks_invalid(section_id: str, text: str) -> bool:
+    t = (text or "").strip()
+    if not t:
+        return True
+    if "```" in t:
+        return True
+    if t.startswith("{") or t.startswith("["):
+        return True
+    if t.lower().startswith(("assistant:", "response:", "output:")):
+        return True
+
+    if section_id == "faqs" and t.count("###") < 2:
+        return True
+    if section_id == "final_cta" and not (t.startswith("##") or t.startswith("###")):
+        return True
+
+    return False
+
+
+def _repair_prompt(user_prompt: str, bad_output: str) -> str:
+    return (
+        "Your previous output was empty or violated the rules.\n"
+        "Rewrite it STRICTLY following the section rules.\n"
+        "- Output Markdown only\n"
+        "- No meta commentary\n"
+        "- No JSON\n"
+        "- Do not echo the prompt\n\n"
+        "ORIGINAL PROMPT:\n"
+        f"{user_prompt}\n\n"
+        "BAD OUTPUT:\n"
+        f"{bad_output}\n"
+    )
+
+
+def _fallback(section_id: str) -> str:
+    if section_id == "intro":
+        return (
+            "Injuries and accidents can create sudden costs and stress. This article explains what to do next and what to document.\n\n"
+            "You will learn practical steps, key evidence, and how to avoid common mistakes."
+        )
+    if section_id == "final_cta":
+        return (
+            "## Get a Consultation\n"
+            "If you are facing bills, paperwork, or disputes, get guidance early.\n\n"
+            "Contact us to discuss your situation and your next steps."
+        )
+    if section_id == "faqs":
+        return (
+            "### What should I do first?\n"
+            "Start by getting help and documenting what happened. Keep records organised.\n\n"
+            "### What evidence matters most?\n"
+            "Medical records, photos, and witness details help. Save everything with dates.\n\n"
+            "### How long does the process take?\n"
+            "It depends on complexity and cooperation. Early action helps timelines.\n\n"
+            "### When should I speak to a professional?\n"
+            "Speak early if costs are high or there is a dispute. It prevents delays."
+        )
+    if section_id == "business_description":
+        return (
+            "## About {COMPANY_NAME}\n"
+            "{COMPANY_NAME} helps clients understand their options and move forward with confidence. "
+            "We focus on careful documentation, clear advice, and practical support.\n\n"
+            "Contact us if you want a clear plan and realistic next steps."
+        )
+    if section_id == "short_cta":
+        return "If you need clarity, reach out for a consultation. Early guidance can protect your position."
+    if section_id == "integrate_references":
+        return (
+            "## References\n"
+            "- Government guidance relevant to the topic\n"
+            "- CDC/NIH topic pages (health)\n"
+            "- Insurance policy documents and claim forms\n"
+            "- Hospital/clinic discharge instructions and follow-up guidance"
+        )
+    return ""
+
+
+# ============================================================
+# SECTION RUNNER (WITH FALLBACK MODEL)
+# ============================================================
 def _run_section_agent(
     section_id: str,
     prompt: str,
     temperature: float,
     model: str,
     max_tokens: int,
-    fallback_model: Optional[str] = None
+    fallback_model: Optional[str] = None,
 ) -> Tuple[str, str]:
-    """
-    Run section agent. If transient provider failures occur, retry on the same model,
-    then optionally try fallback_model (still within your allowed set).
-    """
-    llm = _make_llm(temperature=temperature, max_tokens=max_tokens, model=model)
-    state: _State = {"llm": llm, "section_id": section_id, "prompt": prompt}
+    sys = _SECTION_SYSTEM[section_id]
+
+    def _run_once(m: str) -> str:
+        llm = _make_llm(model=m, temperature=temperature, max_tokens=max_tokens)
+        raw = _invoke_with_retries(llm, sys, prompt, section_id)
+        cleaned = _clean_output(raw)
+
+        if _looks_invalid(section_id, cleaned):
+            if DEBUGGING_MODE:
+                print(f"[SingularAgents] {section_id} invalid -> repair pass | model={m} | chars={len(cleaned)}")
+            repair_user = _repair_prompt(prompt, cleaned)
+            raw2 = _invoke_with_retries(llm, sys, repair_user, section_id)
+            cleaned2 = _clean_output(raw2)
+            if not _looks_invalid(section_id, cleaned2):
+                cleaned = cleaned2
+
+        return cleaned.strip()
+
+    # Try primary
+    out = ""
+    primary_err: Optional[Exception] = None
+    t0 = time.time()
 
     try:
-        out = _GRAPH.invoke(state)
-        return prompt, out["final_json"]
+        out = _run_once(model)
     except Exception as e:
-        if (not _is_transient_provider_error(str(e))) or (not fallback_model) or (fallback_model == model):
-            raise
+        primary_err = e
+        out = ""
 
-        llm2 = _make_llm(temperature=temperature, max_tokens=max_tokens, model=fallback_model)
-        state2: _State = {"llm": llm2, "section_id": section_id, "prompt": prompt}
-        out2 = _GRAPH.invoke(state2)
-        return prompt, out2["final_json"]
+    # If empty/invalid and fallback exists, try fallback once
+    if (not out) and fallback_model:
+        if DEBUGGING_MODE:
+            print(f"[SingularAgents] {section_id} switching fallback model -> {fallback_model} | primary_err={primary_err}")
+        try:
+            out = _run_once(fallback_model)
+        except Exception as e2:
+            if DEBUGGING_MODE:
+                print(f"[SingularAgents] {section_id} fallback also failed: {e2}")
+            out = ""
 
-# ----------------------------
-# Public agent functions (signature preserved, models unchanged)
-# ----------------------------
+    if not out:
+        out = _fallback(section_id)
+
+    dt = (time.time() - t0) * 1000
+    if DEBUGGING_MODE:
+        print(f"[SingularAgents] {section_id} final | {dt:.0f}ms | chars={len(out)} | model={model}")
+
+    return prompt, out.strip()
+
+
+# ============================================================
+# PUBLIC AGENTS (YOUR MODEL A/B LISTS)
+# ============================================================
 def Intro_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     model_a = "Qwen/Qwen3-Next-80B-A3B-Instruct"
     model_b = "deepseek-ai/DeepSeek-R1-0528-tput"
     model = _choose_model("intro", model_a=model_a, model_b=model_b)
     fallback = model_b if model == model_a else model_a
     return _run_section_agent("intro", prompt, temperature, model=model, max_tokens=INTRO_MAX_TOKENS, fallback_model=fallback)
+
 
 def Final_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     model_a = "openai/gpt-oss-120b"
@@ -314,6 +368,7 @@ def Final_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     fallback = model_b if model == model_a else model_a
     return _run_section_agent("final_cta", prompt, temperature, model=model, max_tokens=FINAL_CTA_MAX_TOKENS, fallback_model=fallback)
 
+
 def FAQs_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     model_a = "deepseek-ai/DeepSeek-V3.1"
     model_b = "Qwen/Qwen2.5-72B-Instruct-Turbo"
@@ -321,12 +376,14 @@ def FAQs_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     fallback = model_b if model == model_a else model_a
     return _run_section_agent("faqs", prompt, temperature, model=model, max_tokens=FAQ_MAX_TOKENS, fallback_model=fallback)
 
+
 def Business_Description_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     model_a = "Qwen/Qwen3-Next-80B-A3B-Instruct"
     model_b = "Qwen/Qwen2.5-7B-Instruct-Turbo"
     model = _choose_model("business_description", model_a=model_a, model_b=model_b)
     fallback = model_b if model == model_a else model_a
-    return _run_section_agent("business_description", prompt, temperature, model=model, max_tokens=BUISNESS_DESC_MAX_TOKENS, fallback_model=fallback)
+    return _run_section_agent("business_description", prompt, temperature, model=model, max_tokens=BUSINESS_DESC_MAX_TOKENS, fallback_model=fallback)
+
 
 def Short_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
     return _run_section_agent(
@@ -338,9 +395,10 @@ def Short_CTA_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
         fallback_model=None
     )
 
+
 def References_Writing_Agent(prompt: str, temperature: float) -> Tuple[str, str]:
-    model_a = "openai/gpt-oss-120b"
-    model_b = "OpenAI/gpt-oss-20B"
+    model_a = "openai/gpt-oss-20B"
+    model_b = "openai/gpt-oss-120b"
     model = _choose_model("integrate_references", model_a=model_a, model_b=model_b)
     fallback = model_b if model == model_a else model_a
     return _run_section_agent("integrate_references", prompt, temperature, model=model, max_tokens=REFERENCES_MAX_TOKENS, fallback_model=fallback)

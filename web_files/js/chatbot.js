@@ -1,4 +1,3 @@
-// chatbot.js
 (() => {
   const overlay = document.getElementById("loadingOverlay");
   const reloadBtn = document.getElementById("reloadBtn");
@@ -9,17 +8,17 @@
   let isTyping = false;
 
   const VAR_KEYS = [
-    "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION", 
+    "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION",
     "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
     "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE",
     "BLOGTYPE", "BLOGFOREXAMPLE", "TEMPERATURE",
-    "BLOGPART_INTRO", "BLOGPART_FINALCTA", "BLOGPART_FAQS", 
+    "BLOGPART_INTRO", "BLOGPART_FINALCTA", "BLOGPART_FAQS",
     "BLOGPART_BUSINESSDESC", "BLOGPART_SHORTCTA",
     "PROMPT_FULLBLOG", "PROMPT_INTRO", "PROMPT_FINALCTA",
     "PROMPT_FULLFAQS", "PROMPT_BUSINESSDESC", "PROMPT_REFERENCES", "PROMPT_SHORTCTA"
   ];
 
-  // Default values for variables
+  // NOTE: You asked to keep the SAME keywords for legal + health: unchanged.
   const DEFAULT_VALUES = {
     "KEYWORDS": "lawyer, attorney, consultation, claim, accident, case, insurance, insurance company, evidence, police report, medical records, witness statements, compensation, damages, liability, settlement, legal process, statute limitations, comparative negligence, policy limits, contingency fee, trial, litigation, negotiation, expert witnesses, accident reconstruction, dashcam footage, surveillance footage, medical bills, total loss, gap",
     "BLOGTYPE": "Legal",
@@ -91,13 +90,14 @@ For Health Blogs:
 This should be the format: {BLOGPART_SHORTCTA}`
   };
 
-  const LS_KEY = "wb_prompt_vars_v1";
+  // Version the localstorage key so you can invalidate older broken saved state if needed
+  const LS_KEY = "wb_prompt_vars_v2";
 
   function showLoading() {
     overlay.classList.remove("hidden");
     overlay.setAttribute("aria-hidden", "false");
   }
-  
+
   function hideLoading() {
     overlay.classList.add("hidden");
     overlay.setAttribute("aria-hidden", "true");
@@ -165,13 +165,11 @@ This should be the format: {BLOGPART_SHORTCTA}`
     varsPanel.classList.toggle("collapsed");
   }
 
-  // Initialize checkboxes based on blog type
   function initBlogForExampleCheckboxes() {
     const blogType = document.querySelector('input[name="blogType"]:checked')?.value || "Legal";
     const container = document.getElementById("blogForExampleContainer");
     container.innerHTML = "";
 
-    // Legal: 11-20, Health: 1-10
     const start = blogType === "Legal" ? 11 : 1;
     const end = blogType === "Legal" ? 20 : 10;
 
@@ -184,7 +182,6 @@ This should be the format: {BLOGPART_SHORTCTA}`
       `;
       container.appendChild(label);
 
-      // Add change listener to enforce 10 max
       const checkbox = label.querySelector('input');
       checkbox.addEventListener('change', () => {
         handleCheckboxLimit('blogForExample', 10);
@@ -192,7 +189,6 @@ This should be the format: {BLOGPART_SHORTCTA}`
       });
     }
 
-    // Restore saved values
     const saved = loadVars();
     if (saved && saved.BLOGFOREXAMPLE) {
       saved.BLOGFOREXAMPLE.forEach(val => {
@@ -203,19 +199,17 @@ This should be the format: {BLOGPART_SHORTCTA}`
     updateCheckboxStyles('blogForExample');
   }
 
-  // Initialize blog part checkboxes
   function initBlogPartCheckboxes() {
     const blogType = document.querySelector('input[name="blogType"]:checked')?.value || "Legal";
     const sections = ['Intro', 'FinalCTA', 'FAQs', 'BusinessDesc', 'ShortCTA'];
-    
-    // Legal: 11-20, Health: 1-10
+
     const start = blogType === "Legal" ? 11 : 1;
     const end = blogType === "Legal" ? 20 : 10;
-    
+
     sections.forEach(section => {
       const container = document.getElementById(`example${section}`);
       if (!container) return;
-      
+
       container.innerHTML = "";
 
       for (let i = start; i <= end; i++) {
@@ -227,7 +221,6 @@ This should be the format: {BLOGPART_SHORTCTA}`
         `;
         container.appendChild(label);
 
-        // Add change listener to enforce 10 max
         const checkbox = label.querySelector('input');
         checkbox.addEventListener('change', () => {
           handleCheckboxLimit(`blogPart${section}`, 10);
@@ -236,7 +229,6 @@ This should be the format: {BLOGPART_SHORTCTA}`
       }
     });
 
-    // Restore saved values
     const saved = loadVars();
     if (saved) {
       sections.forEach(section => {
@@ -252,35 +244,27 @@ This should be the format: {BLOGPART_SHORTCTA}`
     }
   }
 
-  // Handle checkbox limit (max selections)
   function handleCheckboxLimit(name, max) {
     const checkboxes = document.querySelectorAll(`input[name="${name}"]`);
     const checked = Array.from(checkboxes).filter(cb => cb.checked);
-    
+
     if (checked.length > max) {
-      // Uncheck the last checked one
       checked[checked.length - 1].checked = false;
     }
   }
 
-  // Update checkbox visual styles
   function updateCheckboxStyles(name) {
     const checkboxes = document.querySelectorAll(`input[name="${name}"]`);
     checkboxes.forEach(cb => {
       const label = cb.closest('.checkbox-label');
-      if (cb.checked) {
-        label.classList.add('checked');
-      } else {
-        label.classList.remove('checked');
-      }
+      if (cb.checked) label.classList.add('checked');
+      else label.classList.remove('checked');
     });
   }
 
-  // Temperature slider
   function initTemperatureSlider() {
     const slider = document.getElementById('VAR_TEMPERATURE');
     const valueDisplay = document.getElementById('temperatureValue');
-    
     if (!slider || !valueDisplay) return;
 
     slider.addEventListener('input', (e) => {
@@ -288,7 +272,6 @@ This should be the format: {BLOGPART_SHORTCTA}`
       valueDisplay.textContent = value;
     });
 
-    // Set initial value
     const saved = loadVars();
     if (saved && saved.TEMPERATURE) {
       const percent = Math.round(parseFloat(saved.TEMPERATURE) * 100);
@@ -299,37 +282,28 @@ This should be the format: {BLOGPART_SHORTCTA}`
 
   function getVarsFromUI() {
     const out = {};
-    
-    // Text inputs and textareas
     const simpleKeys = [
-      "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION", 
+      "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION",
       "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
       "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE",
       "PROMPT_FULLBLOG", "PROMPT_INTRO", "PROMPT_FINALCTA",
       "PROMPT_FULLFAQS", "PROMPT_BUSINESSDESC", "PROMPT_REFERENCES", "PROMPT_SHORTCTA"
     ];
-    
+
     simpleKeys.forEach(k => {
       const el = document.getElementById(`VAR_${k}`);
       out[k] = (el ? el.value : "").trim();
     });
 
-    // Blog type (radio)
     const blogTypeRadio = document.querySelector('input[name="blogType"]:checked');
     out.BLOGTYPE = blogTypeRadio ? blogTypeRadio.value : "Legal";
 
-    // Temperature
     const tempSlider = document.getElementById('VAR_TEMPERATURE');
-    if (tempSlider) {
-      out.TEMPERATURE = (parseInt(tempSlider.value) / 100).toFixed(2);
-    }
+    if (tempSlider) out.TEMPERATURE = (parseInt(tempSlider.value) / 100).toFixed(2);
 
-    // Blog for example (checkboxes)
-    const blogForExample = Array.from(document.querySelectorAll('input[name="blogForExample"]:checked'))
+    out.BLOGFOREXAMPLE = Array.from(document.querySelectorAll('input[name="blogForExample"]:checked'))
       .map(cb => cb.value);
-    out.BLOGFOREXAMPLE = blogForExample;
 
-    // Blog part checkboxes
     const sections = ['Intro', 'FinalCTA', 'FAQs', 'BusinessDesc', 'ShortCTA'];
     sections.forEach(section => {
       const checked = Array.from(document.querySelectorAll(`input[name="blogPart${section}"]:checked`))
@@ -341,46 +315,37 @@ This should be the format: {BLOGPART_SHORTCTA}`
   }
 
   function setVarsToUI(varsObj) {
-    // Text inputs and textareas
     const simpleKeys = [
-      "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION", 
+      "TITLE", "KEYWORDS", "INSERT_INTRO_QUESTION",
       "INSERT_FAQ_QUESTIONS", "SOURCE", "COMPANY_NAME",
       "CALL_NUMBER", "ADDRESS", "STATE_NAME", "LINK", "COMPANY_EMPLOYEE",
       "PROMPT_FULLBLOG", "PROMPT_INTRO", "PROMPT_FINALCTA",
       "PROMPT_FULLFAQS", "PROMPT_BUSINESSDESC", "PROMPT_REFERENCES", "PROMPT_SHORTCTA"
     ];
-    
+
     simpleKeys.forEach(k => {
       const el = document.getElementById(`VAR_${k}`);
-      if (el) {
-        const value = varsObj?.[k] !== undefined && varsObj?.[k] !== "" 
-          ? varsObj[k] 
-          : (DEFAULT_VALUES[k] || "");
-        el.value = value;
-      }
+      if (!el) return;
+      const value = varsObj?.[k] !== undefined && varsObj?.[k] !== ""
+        ? varsObj[k]
+        : (DEFAULT_VALUES[k] || "");
+      el.value = value;
     });
 
-    // Blog type
     const blogType = varsObj?.BLOGTYPE || DEFAULT_VALUES.BLOGTYPE;
-    const radioEl = blogType === "Health" 
+    const radioEl = blogType === "Health"
       ? document.getElementById('VAR_BLOGTYPE_HEALTH')
       : document.getElementById('VAR_BLOGTYPE_LEGAL');
     if (radioEl) radioEl.checked = true;
 
-    // Reinitialize checkboxes based on blog type
     initBlogForExampleCheckboxes();
     initBlogPartCheckboxes();
 
-    // Temperature
     const temp = varsObj?.TEMPERATURE || DEFAULT_VALUES.TEMPERATURE;
     const tempSlider = document.getElementById('VAR_TEMPERATURE');
     const tempValue = document.getElementById('temperatureValue');
-    if (tempSlider) {
-      tempSlider.value = Math.round(parseFloat(temp) * 100);
-    }
-    if (tempValue) {
-      tempValue.textContent = temp;
-    }
+    if (tempSlider) tempSlider.value = Math.round(parseFloat(temp) * 100);
+    if (tempValue) tempValue.textContent = temp;
   }
 
   function loadVars() {
@@ -401,9 +366,7 @@ This should be the format: {BLOGPART_SHORTCTA}`
   function setStatus(msg) {
     if (!varsStatus) return;
     varsStatus.textContent = msg || "";
-    if (msg) {
-      setTimeout(() => { varsStatus.textContent = ""; }, 1800);
-    }
+    if (msg) setTimeout(() => { varsStatus.textContent = ""; }, 1800);
   }
 
   async function loadChatHistoryForToday() {
@@ -418,10 +381,7 @@ This should be the format: {BLOGPART_SHORTCTA}`
 
       if (res.ok && data && data.success === true && Array.isArray(data.rows) && data.rows.length > 0) {
         for (const row of data.rows) {
-          if (row.userprompt) {
-            const userMsg = extractUserMessage(row.userprompt);
-            addMessage(userMsg, "user-message");
-          }
+          if (row.userprompt) addMessage(row.userprompt, "user-message");
           if (row.chatresponse) addMessage(row.chatresponse, "bot-message");
         }
       } else {
@@ -434,26 +394,6 @@ This should be the format: {BLOGPART_SHORTCTA}`
     } finally {
       hideLoading();
     }
-  }
-
-  function extractUserMessage(fullPrompt) {
-    const lines = fullPrompt.split('\n');
-    const varStartIndex = lines.findIndex(line => line.trim() === 'PROMPT_VARIABLES:');
-    
-    if (varStartIndex === -1) {
-      return fullPrompt.trim();
-    }
-    
-    let messageStartIndex = varStartIndex + 1;
-    for (let i = varStartIndex + 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line === "" || (!line.includes(':') && line.length > 0)) {
-        messageStartIndex = i;
-        break;
-      }
-    }
-    
-    return lines.slice(messageStartIndex).join('\n').trim();
   }
 
   async function handleSubmit(e) {
@@ -472,6 +412,18 @@ This should be the format: {BLOGPART_SHORTCTA}`
 
     const varsObj = getVarsFromUI();
     saveVars(varsObj);
+
+    // Debug summary (client-side)
+    console.log("[chatbot.js] sending /api/chat", {
+      messageChars: msg.length,
+      blogType: varsObj.BLOGTYPE,
+      temperature: varsObj.TEMPERATURE,
+      examples: {
+        full: (varsObj.BLOGFOREXAMPLE || []).length,
+        intro: (varsObj.BLOGPART_INTRO || []).length,
+        faqs: (varsObj.BLOGPART_FAQS || []).length
+      }
+    });
 
     try {
       const res = await fetch("/api/chat", {
@@ -522,14 +474,10 @@ This should be the format: {BLOGPART_SHORTCTA}`
     userInput.addEventListener("input", autoResize);
     messageForm.addEventListener("submit", handleSubmit);
 
-    if (varsToggleHeader && varsPanel) {
-      varsToggleHeader.addEventListener("click", toggleVarsPanel);
-    }
+    if (varsToggleHeader && varsPanel) varsToggleHeader.addEventListener("click", () => toggleVarsPanel());
 
-    // Blog type change handler
     document.querySelectorAll('input[name="blogType"]').forEach(radio => {
       radio.addEventListener('change', () => {
-        // Reinitialize both Full Blog Examples AND Blog Part Examples
         initBlogForExampleCheckboxes();
         initBlogPartCheckboxes();
       });
@@ -553,12 +501,10 @@ This should be the format: {BLOGPART_SHORTCTA}`
       });
     }
 
-    // Initialize all components
     initBlogForExampleCheckboxes();
     initBlogPartCheckboxes();
     initTemperatureSlider();
 
-    // Load saved vars OR set defaults if first time
     const savedVars = loadVars();
     if (savedVars === null) {
       setVarsToUI(DEFAULT_VALUES);
@@ -569,7 +515,6 @@ This should be the format: {BLOGPART_SHORTCTA}`
 
     autoResize();
     userInput.focus();
-
     loadChatHistoryForToday();
   });
 })();

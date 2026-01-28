@@ -1,92 +1,109 @@
 # chatbots/orchestrater.py
+from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Tuple
-from datetime import datetime
 import time
 
-from chatbots.SingularAgents import (Intro_Writing_Agent, Final_CTA_Agent, 
-                           FAQs_Writing_Agent, Business_Description_Agent, 
-                           References_Writing_Agent, Short_CTA_Agent)
+from chatbots.SingularAgents import (
+    Intro_Writing_Agent,
+    Final_CTA_Agent,
+    FAQs_Writing_Agent,
+    Business_Description_Agent,
+    References_Writing_Agent,
+    Short_CTA_Agent,
+)
 from chatbots.FullAgents import Full_Blog_Writer
 from data.database_postgres import get_db
-# DEFINE CONSTANTS AND CONFIG
+
 DEBUGGING_MODE = True
-NULL_STRING = " "
-POOL_MIN = 1
-POOL_MAX = 10
-INTRO_MAX_TOKENS = 640
-INTRO_MIN_TOKENS = 128
-FINAL_CTA_MAX_TOKENS = 512
-FINAL_CTA_MIN_TOKENS = 128
-FAQ_MAX_TOKENS = 1024
-FAQ_MIN_TOKENS = 512
-BUISNESS_DESC_MAX_TOKENS = 1024
-BUISNESS_DESC_MIN_TOKENS = 128
-SHORT_CTA_MAX_TOKENS = 256
-SHORT_CTA_MIN_TOKENS = 64
-REFERENCES_MAX_TOKENS = 512
-REFERENCES_MIN_TOKENS = 128
-FULL_TEXT_MAX_TOKENS = 3584
-FULL_TEXT_MIN_TOKENS = 1792
 db = get_db()
+
 
 class OrchestratorError(Exception):
     pass
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
 def load_counter(filepath: str = "data/counter.txt") -> int:
-    """
-    Read an integer from a file and return it.
-    If file doesn't exist or contains invalid data, return default value of 3.
-    """
     try:
-        with open(filepath, 'r') as f:
-            content = f.read().strip()
-            return int(content)
-    except (FileNotFoundError, ValueError, IOError):
-        # If file doesn't exist or contains invalid data, return default
+        with open(filepath, "r") as f:
+            return int(f.read().strip())
+    except Exception:
         return 3
-def write_counter(filepath: str = "data/counter.txt", COUNT: int=5 ) -> None:
-    """
-    Write an integer to a file.
-    """
-    with open(filepath, 'w') as f:
+
+
+def write_counter(filepath: str = "data/counter.txt", COUNT: int = 5) -> None:
+    with open(filepath, "w") as f:
         f.write(str(COUNT))
-def write_profile_history(userprompt: str, chatresponse: str):
-        with db.conn() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO profileHistory (id, entry_date, entry, userprompt, chatresponse)
-                VALUES (3, CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s)
-                """,
-                (userprompt, chatresponse)
-            )
-            conn.commit()
-def write_progress():
-    COUNTI = load_counter()
-    COUNTI+=1
-    write_counter(COUNT=COUNTI)
+
+
+def write_profile_history(user_message: str, chatresponse: str):
+    """
+    IMPORTANT FIX:
+    Store only the actual user_message in userprompt (not the giant used_prompt).
+    This makes frontend history clean and prevents prompt leakage.
+    """
     with db.conn() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO progress (id, entry_date,entry, writing, intro, final_cta, faqs, integrate_references, business_description, short_cta)
-                VALUES (%s, CURRENT_DATE, CURRENT_TIMESTAMP, FALSE,   FALSE, FALSE,    FALSE, FALSE,               FALSE,                FALSE)
-                """,
-                (COUNTI)
-            )
-            conn.commit()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO profileHistory (id, entry_date, entry, userprompt, chatresponse)
+            VALUES (3, CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s)
+            """,
+            (user_message, chatresponse),
+        )
+        conn.commit()
+
+
+def write_progress():
+    COUNTI = load_counter() + 1
+    write_counter(COUNT=COUNTI)
+
+    with db.conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO progress
+              (id, entry_date, entry, writing, intro, final_cta, faqs,
+               integrate_references, business_description, short_cta)
+            VALUES
+              (%s, CURRENT_DATE, CURRENT_TIMESTAMP, FALSE, FALSE, FALSE,
+               FALSE, FALSE, FALSE, FALSE)
+            ON CONFLICT (id) DO UPDATE SET
+              entry_date = EXCLUDED.entry_date,
+              entry = EXCLUDED.entry,
+              writing = FALSE,
+              intro = FALSE,
+              final_cta = FALSE,
+              faqs = FALSE,
+              integrate_references = FALSE,
+              business_description = FALSE,
+              short_cta = FALSE
+            """,
+            (COUNTI,),
+        )
+        conn.commit()
+
+
 def mark_progress(column_name: str):
     COUNTI = load_counter()
     with db.conn() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                f"""
-                UPDATE progress
-                SET {column_name} = TRUE
-                WHERE id = {COUNTI}
-                """
-            )
-            conn.commit()
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            UPDATE progress
+            SET {column_name} = TRUE
+            WHERE id = %s
+            """,
+            (COUNTI,),
+        )
+        conn.commit()
+
+
 def callAgents(
     user_message: str,
     COMPANY_NAME: str,
@@ -102,78 +119,139 @@ def callAgents(
     PROMPT_BUSINESSDESC_FINAL: str,
     PROMPT_REFERENCES_FINAL: str,
     PROMPT_SHORTCTA_FINAL: str,
-    TEMPERATURE: float = 0.70
+    TEMPERATURE: float = 0.70,
 ) -> str:
-    print("Request sent to orchestrater, process about to starrt")
-    # Keep your existing progress init, but don't crash if it's not in scope
+    """
+    Main orchestrator:
+    - Runs section agents in parallel
+    - Calls compiler agent once
+    - Returns ONLY the final compiled blog (no debug scaffolding)
+    """
+    t0 = _now_ms()
+
+    print("\n[Orchestrator] ==================================================")
+    print("[Orchestrator] Starting pipeline")
+    print(f"[Orchestrator] TEMPERATURE={TEMPERATURE}")
+    print("[Orchestrator] Business vars received:")
+    print(f"  COMPANY_NAME: {COMPANY_NAME}")
+    print(f"  CALL_NUMBER: {CALL_NUMBER}")
+    print(f"  ADDRESS: {ADDRESS}")
+    print(f"  STATE_NAME: {STATE_NAME}")
+    print(f"  LINK: {LINK}")
+    print(f"  COMPANY_EMPLOYEE: {COMPANY_EMPLOYEE}")
+    print(f"  USER_MESSAGE: {user_message}")
+    print("[Orchestrator] ==================================================\n")
+
     try:
         write_progress()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Orchestrator] Progress init failed (non-fatal): {e}")
 
-    start = time.time()
-
-    # Common block appended to every section prompt (includes user_message — critical)
-    common_vars = (
-        "USER_MESSAGE = " + user_message + "\n"
-        "COMPANY_NAME = " + COMPANY_NAME + "\n"
-        "CALL_NUMBER = " + CALL_NUMBER + "\n"
-        "ADDRESS = " + ADDRESS + "\n"
-        "STATE_NAME = " + STATE_NAME + "\n"
-        "LINK = " + LINK + "\n"
-        "COMPANY_EMPLOYEE = " + COMPANY_EMPLOYEE + "\n"
+    business_context = (
+        f"COMPANY_NAME: {COMPANY_NAME}\n"
+        f"CALL_NUMBER: {CALL_NUMBER}\n"
+        f"ADDRESS: {ADDRESS}\n"
+        f"STATE_NAME: {STATE_NAME}\n"
+        f"LINK: {LINK}\n"
+        f"COMPANY_EMPLOYEE: {COMPANY_EMPLOYEE}\n"
     )
-    agent_map = {
-        "intro": (Intro_Writing_Agent, PROMPT_INTRO_FINAL + "\n" + common_vars),
-        "final_cta": (Final_CTA_Agent, PROMPT_FINALCTA_FINAL + "\n" + common_vars),
-        "faqs": (FAQs_Writing_Agent, PROMPT_FULLFAQS_FINAL + "\n" + common_vars),
-        "business_description": (Business_Description_Agent, PROMPT_BUSINESSDESC_FINAL + "\n" + common_vars),
-        "short_cta": (Short_CTA_Agent, PROMPT_SHORTCTA_FINAL + "\n" + common_vars),
-        "integrate_references": (References_Writing_Agent, PROMPT_REFERENCES_FINAL + "\n" + common_vars),
+
+    # Build agent prompts (focused, no giant assignment dumps)
+    intro_prompt = f"{PROMPT_INTRO_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
+    finalcta_prompt = f"{PROMPT_FINALCTA_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
+    faqs_prompt = f"{PROMPT_FULLFAQS_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
+    bizdesc_prompt = f"{PROMPT_BUSINESSDESC_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
+    refs_prompt = f"{PROMPT_REFERENCES_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
+    shortcta_prompt = f"{PROMPT_SHORTCTA_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
+
+    agent_jobs = {
+        "intro": (Intro_Writing_Agent, intro_prompt, "intro"),
+        "final_cta": (Final_CTA_Agent, finalcta_prompt, "final_cta"),
+        "faqs": (FAQs_Writing_Agent, faqs_prompt, "faqs"),
+        "business_description": (Business_Description_Agent, bizdesc_prompt, "business_description"),
+        "integrate_references": (References_Writing_Agent, refs_prompt, "integrate_references"),
+        "short_cta": (Short_CTA_Agent, shortcta_prompt, "short_cta"),
     }
 
-    agent_results = {}
+    agent_results: Dict[str, str] = {k: "" for k in agent_jobs.keys()}
+
+    print("[Orchestrator] Launching 6 section agents in parallel...")
+    t_agents0 = _now_ms()
 
     with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {
-            executor.submit(fn, prompt, TEMPERATURE): progress_col
-            for progress_col, (fn, prompt) in agent_map.items()
+        future_map = {
+            executor.submit(fn, prmpt, TEMPERATURE): (key, progress_col)
+            for key, (fn, prmpt, progress_col) in agent_jobs.items()
         }
 
-        for future in as_completed(futures):
-            progress_col = futures[future]
+        for future in as_completed(future_map):
+            key, progress_col = future_map[future]
+            t_one0 = _now_ms()
             try:
-                print(f"About to call {progress_col} agent.")
-                used_prompt, output = future.result(timeout=90)
+                _, output = future.result()
+                out = (output or "").strip()
+                agent_results[key] = out
 
-                # Persist immediately (your desired behaviour)
-                write_profile_history(used_prompt, output)
-                mark_progress(progress_col)
+                try:
+                    mark_progress(progress_col)
+                except Exception as e:
+                    print(f"[Orchestrator] mark_progress({progress_col}) failed (non-fatal): {e}")
 
-                agent_results[progress_col] = output
+                dt = _now_ms() - t_one0
+                print(f"[Orchestrator] ✅ {key} done in {dt}ms | chars={len(out)}")
 
             except Exception as e:
-                raise OrchestratorError(f"Agent failed ({progress_col}): {e}")
+                agent_results[key] = ""
+                dt = _now_ms() - t_one0
+                print(f"[Orchestrator] ❌ {key} failed in {dt}ms | err={e}")
 
-    full_prompt = (
-        PROMPT_FULLBLOG_FINAL + "\n"
-        "The following is the user prompt:\n" + user_message + "\n\n"
-        "The following are the results of the previous agents:\n\n"
-        "Introduction Agent:\n" + agent_results["intro"] + "\n\n"
-        "Final CTA Agent:\n" + agent_results["final_cta"] + "\n\n"
-        "FAQs Agent:\n" + agent_results["faqs"] + "\n\n"
-        "Business Description Agent:\n" + agent_results["business_description"] + "\n\n"
-        "Short CTA Agent:\n" + agent_results["short_cta"] + "\n\n"
-        "Integrate References Agent:\n" + agent_results["integrate_references"] + "\n\n"
-        + common_vars
+    print(f"[Orchestrator] Section agents finished in {_now_ms() - t_agents0}ms")
+
+    # ------------------------------------------------------------
+    # CRITICAL FIX:
+    # Do NOT prefix the compiler prompt with PROMPT_FULLBLOG_FINAL.
+    # Instead pass it as a tagged block so it doesn't get echoed.
+    # ------------------------------------------------------------
+    print("[Orchestrator] Building tagged compiler prompt...")
+    compiler_prompt = (
+        f"<<BLOG_REQUIREMENTS>>\n{PROMPT_FULLBLOG_FINAL}\n\n"
+        f"<<USER_MESSAGE>>\n{user_message}\n\n"
+        f"<<BUSINESS_CONTEXT>>\n{business_context}\n"
+        f"<<DRAFT_INTRO>>\n{agent_results.get('intro', '')}\n\n"
+        f"<<DRAFT_BODY_FAQS>>\n{agent_results.get('faqs', '')}\n\n"
+        f"<<DRAFT_BUSINESS_DESCRIPTION>>\n{agent_results.get('business_description', '')}\n\n"
+        f"<<DRAFT_SHORT_CTA>>\n{agent_results.get('short_cta', '')}\n\n"
+        f"<<DRAFT_FINAL_CTA>>\n{agent_results.get('final_cta', '')}\n\n"
+        f"<<DRAFT_REFERENCES>>\n{agent_results.get('integrate_references', '')}\n"
     )
-    print("Calling final writing agent with prompt:\n", full_prompt)
-    used_prompt, final_output = Full_Blog_Writer(full_prompt, TEMPERATURE)
 
-    write_profile_history(used_prompt, final_output)
-    mark_progress("writing")
-    
-    duration = round(time.time() - start, 2)
-    print(f"[Orchestrator] Completed in {duration} seconds.")
+    print("[Orchestrator] Calling final compiler agent...")
+    t_comp0 = _now_ms()
+    try:
+        _, final_output = Full_Blog_Writer(compiler_prompt, TEMPERATURE)
 
-    return final_output
+        if not final_output or not final_output.strip():
+            raise OrchestratorError("Compiler returned empty output")
+
+        dt_comp = _now_ms() - t_comp0
+        print(f"[Orchestrator] ✅ Compiler done in {dt_comp}ms | chars={len(final_output)}")
+
+        # Persist final result (store only user_message as userprompt)
+        try:
+            write_profile_history(user_message, final_output)
+        except Exception as e:
+            print(f"[Orchestrator] write_profile_history failed (non-fatal): {e}")
+
+        try:
+            mark_progress("writing")
+        except Exception as e:
+            print(f"[Orchestrator] mark_progress(writing) failed (non-fatal): {e}")
+
+        total_ms = _now_ms() - t0
+        print(f"[Orchestrator] Pipeline completed in {total_ms}ms")
+        print("[Orchestrator] Returning FINAL BLOG ONLY (no debug scaffolding)\n")
+        return final_output.strip()
+
+    except Exception as e:
+        print(f"[Orchestrator] ❌ Final compiler failed: {e}")
+        raise OrchestratorError(f"Final compiler failed: {e}")
