@@ -130,11 +130,12 @@ def _strip_code_fences_and_meta(text: str) -> str:
     # (We only want the blog output, not the prompt.)
     t = re.sub(r"<<[A-Z0-9_]+>>\n[\s\S]*?(?=\n<<[A-Z0-9_]+>>\n|\Z)", "", t).strip()
 
+    t = re.sub(r"^\s*(system|human)\s*:\s*", "", t, flags=re.I | re.M).strip()
+
     # Unwrap outer quotes last
     t = _strip_outer_quotes(t)
 
     return t.strip()
-
 
 def _looks_invalid(text: str) -> bool:
     t = (text or "").strip()
@@ -146,6 +147,23 @@ def _looks_invalid(text: str) -> bool:
         return True
     if t.lower().startswith(("assistant:", "ai:", "response:", "output:")):
         return True
+
+    # HARD REJECT: prompt/draft bundle formats
+    bad_markers = [
+        "SECTION CONTENTS:",
+        "INTRODUCTION DRAFT:",
+        "FAQ DRAFT:",
+        "FINAL CTA DRAFT:",
+        "BUSINESS DESCRIPTION DRAFT:",
+        "LEGAL_FIELD:",
+    ]
+    if any(m in t for m in bad_markers):
+        return True
+
+    # Require real blog structure: must have a title heading
+    if not (t.startswith("# ") or "\n# " in t):
+        return True
+
     return False
 
 
