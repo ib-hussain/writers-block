@@ -308,8 +308,7 @@ def handle_chat():
         )
 
         # Debug: print only a short preview
-        preview = (bot_response[:450] + "…") if bot_response and len(bot_response) > 450 else bot_response
-        print("[API] ✅ BOT RESPONSE PREVIEW:\n", preview, "\n")
+        print("[API] BOT RESPONSE PREVIEW:\n", bot_response, "\n")
 
         return jsonify({
             "success": True,

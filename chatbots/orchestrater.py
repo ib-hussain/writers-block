@@ -1,257 +1,196 @@
-# chatbots/orchestrater.py
+# orchestrater.py
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Tuple
 import time
+import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, Tuple, Any
 
 from chatbots.SingularAgents import (
     Intro_Writing_Agent,
     Final_CTA_Agent,
     FAQs_Writing_Agent,
     Business_Description_Agent,
-    References_Writing_Agent,
     Short_CTA_Agent,
+    References_Writing_Agent,
 )
+
 from chatbots.FullAgents import Full_Blog_Writer
-from data.database_postgres import get_db
-
-DEBUGGING_MODE = True
-db = get_db()
 
 
-class OrchestratorError(Exception):
-    pass
+# =========================
+# DEBUG PRINT HELPERS
+# =========================
+def _log(msg: str) -> None:
+    print(f"[Orchestrator] {msg}")
 
 
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+def _log_err(msg: str) -> None:
+    print(f"[Orchestrator][ERROR] {msg}")
 
 
-def load_counter(filepath: str = "data/counter.txt") -> int:
-    try:
-        with open(filepath, "r") as f:
-            return int(f.read().strip())
-    except Exception:
-        return 3
+# =========================
+# PROMPT TAGGING
+# =========================
+def _tag_block(tag: str, content: str) -> str:
+    content = (content or "").strip()
+    return f"<<{tag}>>\n{content}\n"
 
 
-def write_counter(filepath: str = "data/counter.txt", COUNT: int = 5) -> None:
-    with open(filepath, "w") as f:
-        f.write(str(COUNT))
+def _build_business_context(variables: Dict[str, str]) -> str:
+    lines = []
+    for k in [
+        "USER_MESSAGE",
+        "COMPANY_NAME",
+        "CALL_NUMBER",
+        "ADDRESS",
+        "STATE_NAME",
+        "LINK",
+        "COMPANY_EMPLOYEE",
+        "COMPANY_EMPLOYEE_PRONOUN",
+        "COMPANY_EMPLOYEE_POSITION",
+    ]:
+        if k in variables and variables[k] is not None:
+            lines.append(f"{k}: {variables[k]}")
+    return "\n".join(lines).strip()
 
 
-def write_profile_history(user_message: str, chatresponse: str):
-    """
-    IMPORTANT FIX:
-    Store only the actual user_message in userprompt (not the giant used_prompt).
-    This makes frontend history clean and prevents prompt leakage.
-    """
-    with db.conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO profileHistory (id, entry_date, entry, userprompt, chatresponse)
-            VALUES (3, CURRENT_DATE, CURRENT_TIMESTAMP, %s, %s)
-            """,
-            (user_message, chatresponse),
-        )
-        conn.commit()
-
-
-def write_progress():
-    COUNTI = load_counter() + 1
-    write_counter(COUNT=COUNTI)
-
-    with db.conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO progress
-              (id, entry_date, entry, writing, intro, final_cta, faqs,
-               integrate_references, business_description, short_cta)
-            VALUES
-              (%s, CURRENT_DATE, CURRENT_TIMESTAMP, FALSE, FALSE, FALSE,
-               FALSE, FALSE, FALSE, FALSE)
-            ON CONFLICT (id) DO UPDATE SET
-              entry_date = EXCLUDED.entry_date,
-              entry = EXCLUDED.entry,
-              writing = FALSE,
-              intro = FALSE,
-              final_cta = FALSE,
-              faqs = FALSE,
-              integrate_references = FALSE,
-              business_description = FALSE,
-              short_cta = FALSE
-            """,
-            (COUNTI,),
-        )
-        conn.commit()
-
-
-def mark_progress(column_name: str):
-    COUNTI = load_counter()
-    with db.conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            f"""
-            UPDATE progress
-            SET {column_name} = TRUE
-            WHERE id = %s
-            """,
-            (COUNTI,),
-        )
-        conn.commit()
-
-
-def callAgents(
-    user_message: str,
-    COMPANY_NAME: str,
-    CALL_NUMBER: str,
-    ADDRESS: str,
-    STATE_NAME: str,
-    LINK: str,
-    COMPANY_EMPLOYEE: str,
-    PROMPT_FULLBLOG_FINAL: str,
-    PROMPT_INTRO_FINAL: str,
-    PROMPT_FINALCTA_FINAL: str,
-    PROMPT_FULLFAQS_FINAL: str,
-    PROMPT_BUSINESSDESC_FINAL: str,
-    PROMPT_REFERENCES_FINAL: str,
-    PROMPT_SHORTCTA_FINAL: str,
-    TEMPERATURE: float = 0.70,
+def _build_compiler_prompt(
+    blog_requirements: str,
+    variables: Dict[str, str],
+    drafts: Dict[str, str],
 ) -> str:
     """
-    Main orchestrator:
-    - Runs section agents in parallel
-    - Calls compiler agent once
-    - Returns ONLY the final compiled blog (no debug scaffolding)
+    IMPORTANT:
+    - Do NOT embed System/Human text here.
+    - Only use tagged blocks so FullAgents can parse them.
     """
-    t0 = _now_ms()
+    business_context = _build_business_context(variables)
 
-    print("\n[Orchestrator] ==================================================")
-    print("[Orchestrator] Starting pipeline")
-    print(f"[Orchestrator] TEMPERATURE={TEMPERATURE}")
-    print("[Orchestrator] Business vars received:")
-    print(f"  COMPANY_NAME: {COMPANY_NAME}")
-    print(f"  CALL_NUMBER: {CALL_NUMBER}")
-    print(f"  ADDRESS: {ADDRESS}")
-    print(f"  STATE_NAME: {STATE_NAME}")
-    print(f"  LINK: {LINK}")
-    print(f"  COMPANY_EMPLOYEE: {COMPANY_EMPLOYEE}")
-    print(f"  USER_MESSAGE: {user_message}")
-    print("[Orchestrator] ==================================================\n")
+    prompt = ""
+    prompt += _tag_block("BLOG_REQUIREMENTS", blog_requirements)
+    prompt += _tag_block("USER_MESSAGE", variables.get("USER_MESSAGE", ""))
+    prompt += _tag_block("BUSINESS_CONTEXT", business_context)
 
+    prompt += _tag_block("DRAFT_INTRO", drafts.get("intro", ""))
+    prompt += _tag_block("DRAFT_BODY_FAQS", drafts.get("faqs", ""))  # if you only have FAQs as "body", keep here
+    prompt += _tag_block("DRAFT_BUSINESS_DESCRIPTION", drafts.get("business_description", ""))
+    prompt += _tag_block("DRAFT_SHORT_CTA", drafts.get("short_cta", ""))
+    prompt += _tag_block("DRAFT_FINAL_CTA", drafts.get("final_cta", ""))
+    prompt += _tag_block("DRAFT_REFERENCES", drafts.get("integrate_references", ""))
+
+    return prompt.strip()
+
+
+# =========================
+# SAFE AGENT RUNNER
+# =========================
+def _run_agent(agent_name: str, fn, prompt: str, temperature: float) -> Tuple[str, str]:
+    """
+    Returns (agent_name, output_text).
+    Never raises to the executor.
+    """
     try:
-        write_progress()
+        _, out = fn(prompt, temperature)
+        out = (out or "").strip()
+        if not out:
+            raise RuntimeError("empty output")
+        return agent_name, out
     except Exception as e:
-        print(f"[Orchestrator] Progress init failed (non-fatal): {e}")
+        _log_err(f"Agent '{agent_name}' failed: {e}")
+        return agent_name, ""
 
-    business_context = (
-        f"COMPANY_NAME: {COMPANY_NAME}\n"
-        f"CALL_NUMBER: {CALL_NUMBER}\n"
-        f"ADDRESS: {ADDRESS}\n"
-        f"STATE_NAME: {STATE_NAME}\n"
-        f"LINK: {LINK}\n"
-        f"COMPANY_EMPLOYEE: {COMPANY_EMPLOYEE}\n"
+
+# =========================
+# MAIN PIPELINE
+# =========================
+def generate_blog_pipeline(
+    variables: Dict[str, str],
+    prompts: Dict[str, str],
+    temperature: float,
+) -> str:
+    """
+    variables: company info + USER_MESSAGE etc.
+    prompts: dict containing the already-filled prompt strings:
+        prompts["intro_prompt"], prompts["final_cta_prompt"], prompts["faqs_prompt"],
+        prompts["business_description_prompt"], prompts["short_cta_prompt"], prompts["references_prompt"],
+        prompts["full_blog_prompt"]   (THIS IS YOUR BLOG REQUIREMENTS STRING)
+    returns: final blog markdown only
+    """
+    t0 = time.time()
+    _log("Starting blog generation pipeline...")
+
+    _log("Recieved the following variables:")
+    for k, v in variables.items():
+        _log(f"  {k}: {v}")
+
+    # Extract requirements
+    blog_requirements = (prompts.get("full_blog_prompt") or "").strip()
+    if not blog_requirements:
+        blog_requirements = "Write a clear SEO blog using the provided drafts."
+
+    # 1) Run section agents in parallel
+    _log("Launching 6 section agents in parallel...")
+
+    agent_calls = [
+        ("intro", Intro_Writing_Agent, prompts.get("intro_prompt", "")),
+        ("final_cta", Final_CTA_Agent, prompts.get("final_cta_prompt", "")),
+        ("faqs", FAQs_Writing_Agent, prompts.get("faqs_prompt", "")),
+        ("business_description", Business_Description_Agent, prompts.get("business_description_prompt", "")),
+        ("short_cta", Short_CTA_Agent, prompts.get("short_cta_prompt", "")),
+        ("integrate_references", References_Writing_Agent, prompts.get("references_prompt", "")),
+    ]
+
+    drafts: Dict[str, str] = {}
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futures = []
+        for name, fn, p in agent_calls:
+            futures.append(ex.submit(_run_agent, name, fn, p, temperature))
+
+        for fut in as_completed(futures):
+            name, out = fut.result()
+            drafts[name] = out
+            if out:
+                _log(f"Processing {name} agent result...")
+                _log(f"{name} agent completed successfully | chars={len(out)}")
+                _log(f"{name} agent completed successfully | Output: \n{drafts[name]}")
+            else:
+                _log_err(f"{name} agent returned empty output")
+
+    # 2) Build compiler prompt (TAGGED)
+    _log("Building final compiler prompt...")
+    compiler_prompt = _build_compiler_prompt(
+        blog_requirements=blog_requirements,
+        variables=variables,
+        drafts=drafts,
     )
 
-    # Build agent prompts (focused, no giant assignment dumps)
-    intro_prompt = f"{PROMPT_INTRO_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
-    finalcta_prompt = f"{PROMPT_FINALCTA_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
-    faqs_prompt = f"{PROMPT_FULLFAQS_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
-    bizdesc_prompt = f"{PROMPT_BUSINESSDESC_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
-    refs_prompt = f"{PROMPT_REFERENCES_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
-    shortcta_prompt = f"{PROMPT_SHORTCTA_FINAL}\n\nUser message:\n{user_message}\n\nBusiness context:\n{business_context}"
+    # IMPORTANT: Do NOT print compiler_prompt (it will leak in logs or UI copying)
+    _log(f"Compiler prompt built | chars={len(compiler_prompt)}")
+    _log(f"Compiler prompt: {compiler_prompt}")
 
-    agent_jobs = {
-        "intro": (Intro_Writing_Agent, intro_prompt, "intro"),
-        "final_cta": (Final_CTA_Agent, finalcta_prompt, "final_cta"),
-        "faqs": (FAQs_Writing_Agent, faqs_prompt, "faqs"),
-        "business_description": (Business_Description_Agent, bizdesc_prompt, "business_description"),
-        "integrate_references": (References_Writing_Agent, refs_prompt, "integrate_references"),
-        "short_cta": (Short_CTA_Agent, shortcta_prompt, "short_cta"),
-    }
-
-    agent_results: Dict[str, str] = {k: "" for k in agent_jobs.keys()}
-
-    print("[Orchestrator] Launching 6 section agents in parallel...")
-    t_agents0 = _now_ms()
-
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        future_map = {
-            executor.submit(fn, prmpt, TEMPERATURE): (key, progress_col)
-            for key, (fn, prmpt, progress_col) in agent_jobs.items()
-        }
-
-        for future in as_completed(future_map):
-            key, progress_col = future_map[future]
-            t_one0 = _now_ms()
-            try:
-                _, output = future.result()
-                out = (output or "").strip()
-                agent_results[key] = out
-
-                try:
-                    mark_progress(progress_col)
-                except Exception as e:
-                    print(f"[Orchestrator] mark_progress({progress_col}) failed (non-fatal): {e}")
-
-                dt = _now_ms() - t_one0
-                print(f"[Orchestrator] ✅ {key} done in {dt}ms | chars={len(out)}")
-
-            except Exception as e:
-                agent_results[key] = ""
-                dt = _now_ms() - t_one0
-                print(f"[Orchestrator] ❌ {key} failed in {dt}ms | err={e}")
-
-    print(f"[Orchestrator] Section agents finished in {_now_ms() - t_agents0}ms")
-
-    # ------------------------------------------------------------
-    # CRITICAL FIX:
-    # Do NOT prefix the compiler prompt with PROMPT_FULLBLOG_FINAL.
-    # Instead pass it as a tagged block so it doesn't get echoed.
-    # ------------------------------------------------------------
-    print("[Orchestrator] Building tagged compiler prompt...")
-    compiler_prompt = (
-        f"<<BLOG_REQUIREMENTS>>\n{PROMPT_FULLBLOG_FINAL}\n\n"
-        f"<<USER_MESSAGE>>\n{user_message}\n\n"
-        f"<<BUSINESS_CONTEXT>>\n{business_context}\n"
-        f"<<DRAFT_INTRO>>\n{agent_results.get('intro', '')}\n\n"
-        f"<<DRAFT_BODY_FAQS>>\n{agent_results.get('faqs', '')}\n\n"
-        f"<<DRAFT_BUSINESS_DESCRIPTION>>\n{agent_results.get('business_description', '')}\n\n"
-        f"<<DRAFT_SHORT_CTA>>\n{agent_results.get('short_cta', '')}\n\n"
-        f"<<DRAFT_FINAL_CTA>>\n{agent_results.get('final_cta', '')}\n\n"
-        f"<<DRAFT_REFERENCES>>\n{agent_results.get('integrate_references', '')}\n"
-    )
-
-    print("[Orchestrator] Calling final compiler agent...")
-    t_comp0 = _now_ms()
+    # 3) Call compiler agent
+    _log("Calling final compiler agent...")
     try:
-        _, final_output = Full_Blog_Writer(compiler_prompt, TEMPERATURE)
-
-        if not final_output or not final_output.strip():
-            raise OrchestratorError("Compiler returned empty output")
-
-        dt_comp = _now_ms() - t_comp0
-        print(f"[Orchestrator] ✅ Compiler done in {dt_comp}ms | chars={len(final_output)}")
-
-        # Persist final result (store only user_message as userprompt)
-        try:
-            write_profile_history(user_message, final_output)
-        except Exception as e:
-            print(f"[Orchestrator] write_profile_history failed (non-fatal): {e}")
-
-        try:
-            mark_progress("writing")
-        except Exception as e:
-            print(f"[Orchestrator] mark_progress(writing) failed (non-fatal): {e}")
-
-        total_ms = _now_ms() - t0
-        print(f"[Orchestrator] Pipeline completed in {total_ms}ms")
-        print("[Orchestrator] Returning FINAL BLOG ONLY (no debug scaffolding)\n")
-        return final_output.strip()
-
+        _, final_blog = Full_Blog_Writer(compiler_prompt, temperature)
+        final_blog = (final_blog or "").strip()
+        _log("Final compiler agent completed | Output: \n" + final_blog)
     except Exception as e:
-        print(f"[Orchestrator] ❌ Final compiler failed: {e}")
-        raise OrchestratorError(f"Final compiler failed: {e}")
+        _log_err(f"Compiler failed: {e}")
+        _log_err(traceback.format_exc())
+        # fallback: stitch drafts, but still don't leak prompt
+        final_blog = "\n\n".join([
+            drafts.get("intro", ""),
+            drafts.get("faqs", ""),
+            drafts.get("business_description", ""),
+            drafts.get("short_cta", ""),
+            drafts.get("final_cta", ""),
+            drafts.get("integrate_references", ""),
+        ]).strip()
+
+    dt = time.time() - t0
+    _log(f"Pipeline completed in {dt:.2f} seconds.")
+
+    # RETURN ONLY FINAL BLOG (NO DEBUG / NO PROMPT / NO SYSTEM/HUMAN)
+    return final_blog
