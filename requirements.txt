@@ -21,7 +21,7 @@ langgraph==0.0.33
 
 # HTTP & Networking
 requests==2.31.0
-httpx==0.27.2
+httpx==0.24.1
 
 # Environment & Configuration
 python-dotenv==1.0.0
