@@ -6,6 +6,9 @@
 ![Flask](https://img.shields.io/badge/Flask-3.1.0%2B-lightgrey)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15.12%2B-blue)
 
+<p align="center">
+  <img src="data\homepage.jpg" alt="Home Page" style="border-radius: 20px;">
+</p>
 </div>
 
 ## 📖 Overview
