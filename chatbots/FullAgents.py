@@ -17,21 +17,27 @@ except Exception:
 DEBUGGING_MODE = True
 FULL_TEXT_MAX_TOKENS = 3584
 FULL_TEXT_MIN_TOKENS = 1792
-COMPILER_MODEL = "deepseek-ai/DeepSeek-V3"  # Fixed: Changed from FINAL_AGENT_MODEL to COMPILER_MODEL
+# COMPILER_MODEL = "deepseek-ai/DeepSeek-V3"  # Fixed: Changed from FINAL_AGENT_MODEL to COMPILER_MODEL
+COMPILER_MODEL = "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
 
 # STRICT COMPILER DIRECTIVE
 SYSTEM_DIRECTIVE_COMPILER = """You are the final compiler agent for a business blog article.
 
 CRITICAL OUTPUT RULES:
-1) Output MUST be plain Markdown ONLY (a single string).
+1) Output MUST be ONLY the final compiled blog article in plain Markdown.
 2) Do NOT output JSON, code fences (```), HTML tags, XML, or templating syntax.
 3) Do NOT include variable assignment lines (e.g., "COMPANY_NAME = ...").
 4) Preserve placeholders exactly as-is (COMPANY_NAME, CALL_NUMBER, LINK, ADDRESS, STATE_NAME, etc.).
 5) Do NOT add new legal/medical specifics not in the provided drafts/user message.
-6) Remove all agent labels, meta commentary, and prompt scaffolding.
-7) Make the article read like one coherent author wrote it.
+6) STRICTLY FORBIDDEN: Do NOT include ANY meta commentary, agent labels, thought process, or prompt scaffolding.
+7) Do NOT include section headers like "=== OUTPUT ===" or "Now, we compile all the sections...".
+8) Do NOT explain what you're doing or list what sections you have.
+9) Simply output the cohesive blog article that merges all provided sections.
+10) Make the article read like one coherent author wrote it.
+
 TASK:
-Merge the section drafts into one cohesive blog with clean headings and transitions.
+Merge the provided section drafts into one cohesive blog article. 
+Output ONLY the final blog article, nothing else.
 """
 
 # LLM + UTILS
@@ -66,11 +72,15 @@ def _invoke_with_retries(llm: Together, messages: List[Any], attempts: int = 4) 
             continue
     
     raise RuntimeError(f"Compiler invocation failed after {attempts} attempts: {last_err}")
+
+_TAG_RE = re.compile(r"", re.S)
+
 def _strip_outer_quotes(t: str) -> str:
     t = (t or "").strip()
     if len(t) >= 2 and ((t[0] == '"' and t[-1] == '"') or (t[0] == "'" and t[-1] == "'")):
         return t[1:-1].strip()
     return t
+
 def _strip_code_fences_and_meta(text: str) -> str:
     """
     Aggressive cleaning
@@ -107,16 +117,17 @@ def _strip_code_fences_and_meta(text: str) -> str:
     return t.strip()
 
 # PUBLIC FUNCTION
-def Full_Blog_Writer(prompt: str, temperature: float = 0.67) :
+def Full_Blog_Writer(prompt: str, temperature: float = 0.7) -> Tuple[str, str]:
     """
     Final compiler agent.
-    Returns: compiled_blog
+    Returns: (used_prompt, compiled_blog)
     """
     print("[FullAgents] Full_Blog_Writer CALLED")
 
     llm = _make_llm(temperature=temperature, max_tokens=FULL_TEXT_MAX_TOKENS)
-
-    if DEBUGGING_MODE:  print(f"[FullAgents] PROMPT TO COMPILER : {prompt}")
+    
+    if DEBUGGING_MODE: 
+        print(f"[FullAgents] PROMPT TO COMPILER : {prompt}")
     
     messages = [SystemMessage(content=SYSTEM_DIRECTIVE_COMPILER), HumanMessage(content=prompt)]
     
@@ -129,9 +140,9 @@ def Full_Blog_Writer(prompt: str, temperature: float = 0.67) :
             print(f"[FullAgents] Cleaned response length: {len(cleaned_response)}")
         
         # Return both the prompt used and the compiled blog
-        return cleaned_response
+        return prompt, cleaned_response
         
     except Exception as e:
         print(f"[FullAgents] Error in Full_Blog_Writer: {e}")
         # Return empty blog but keep the prompt for debugging
-        return f"ERROR: {str(e)}"
+        return prompt, f"ERROR: {str(e)}"

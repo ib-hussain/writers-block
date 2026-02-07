@@ -130,7 +130,8 @@ The application uses multiple AI models optimized for different blog sections. P
 | **Qwen/Qwen2.5-72B-Instruct-Turbo** | $1.20 | $1.20 | FAQs | 512-1024 tokens |
 | **meta-llama/Meta-Llama-3-8B-Instruct-Lite** | $0.10 | $0.10 | Final CTA | 128-512 tokens |
 | **deepseek-ai/DeepSeek-R1-0528-tput** | $0.55 | $2.19 | Intro Section | 128-640 tokens |
-| **deepseek-ai/DeepSeek-V3** | $1.25 | $1.25 | Final Full Blog | 1792-3584 tokens |
+| **deepseek-ai/DeepSeek-R1-0528-tput** | $0.55 | $2.19 | Intro Section | 128-640 tokens |
+| **meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8** | $0.27 | $0.85 |   |   |
 
 ### Cost Per Blog Section
 

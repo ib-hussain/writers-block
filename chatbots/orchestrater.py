@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict
+from typing import Dict, Tuple, Any, List
 
 from chatbots.SingularAgents import (
     Intro_Writing_Agent,
@@ -161,7 +161,7 @@ def callAgents(
         "=== FINAL CTA ===\n" + final_cta_content
     )
     
-    _log(f"Compiler prompt built ")
+    _log(f"Compiler prompt built | Length: {len(compiler_prompt)} characters")
     _log("==================================\n" + compiler_prompt + "\n...\n==================================")
 
     # 3) Call compiler agent
@@ -169,11 +169,12 @@ def callAgents(
     final_blog = ""
     
     try:
-        # Full_Blog_Writer returns compiled_blog
-        compiled_blog = Full_Blog_Writer(compiler_prompt, TEMPERATURE)
+        # Full_Blog_Writer returns (used_prompt, compiled_blog)
+        used_prompt, compiled_blog = Full_Blog_Writer(compiler_prompt, TEMPERATURE)
         final_blog = compiled_blog.strip()
         _log("Final compiler agent completed successfully")
-        _log("Output:\n" + final_blog + "\n...")
+        _log(f"Output length: {len(final_blog)} characters")
+        _log("First 500 chars of output:\n" + final_blog[:500] + "\n...")
     except Exception as e:
         _log_err(f"Compiler failed: {e}")
         _log_err(traceback.format_exc())
