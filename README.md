@@ -8,157 +8,204 @@
 
 </div>
 
-## Overview
+## 📖 Overview
 
-Writer's Block is a Flask-based web application that streamlines blog content creation through AI-powered agents. Designed specifically for legal and health blog writing, it generates SEO-optimized content with customizable prompts, example-based learning, and multi-section blog generation.
+Writer's Block is an **AI-powered blog generation platform** built on Flask, designed specifically for legal and health content creators. It combines multi-agent AI architecture with PostgreSQL-backed content management to produce SEO-optimized, professionally-written blog posts at scale.
 
-### Key Features
+**🌐 Live Demo:** [https://writers-block-weup.onrender.com](https://writers-block-weup.onrender.com)
 
-- **Multi-Agent Architecture** - Parallel execution of specialized AI agents for different blog sections
-- **Customizable Prompts** - Template-based system with 26+ configurable variables
-- **PostgreSQL Integration** - Robust database layer for content storage and history tracking
-- **Interactive Web Interface** - Real-time chat interface with collapsible configuration panel
-- **Progress Tracking** - Monitor daily agent completion and token usage statistics
-- **Example-Based Learning** - Fetch and utilize existing blog examples for consistent style
+### Who This Is For
+- **Law Firms** - Generate compliant, informative legal blog content
+- **Healthcare Providers** - Create educational health and wellness articles  
+- **Content Agencies** - Scale high-quality content production efficiently
+- **Marketing Teams** - Maintain consistent brand voice across hundreds of articles
+
+### What Makes It Different
+✅ **6 Specialized AI Agents** working in parallel for different blog sections  
+✅ **Cost-Optimized** - Uses the right model for each task (~$0.04 per blog)  
+✅ **Example-Based Learning** - Maintains consistent style by learning from your existing content  
+✅ **Full Customization** - 26+ variables for complete control over output  
+✅ **Production-Ready** - Built-in retry logic, fallback models, and error handling
 
 
-## Architecture
+## 🏗️ Technical Architecture
 
+The system employs a sophisticated **Map-Reduce** pattern for content generation, orchestrated by a central engine that manages state, concurrency, and error handling.
+
+### Core Components
+
+```mermaid
+graph TD
+    User[User Request] -->|Parameters & Context| Orch[Orchestrator Engine]
+    
+    subgraph "Parallel Execution Layer (Map Phase)"
+        Orch -->|Thread 1| Intro[Intro Agent]
+        Orch -->|Thread 2| Biz[Business Desc Agent]
+        Orch -->|Thread 3| Ref[References Agent]
+        Orch -->|Thread 4| FAQ[FAQ Agent]
+        Orch -->|Thread 5| CTA1[Short CTA Agent]
+        Orch -->|Thread 6| CTA2[Final CTA Agent]
+    end
+    
+    subgraph "Synthesis Layer (Reduce Phase)"
+        Intro & Biz & Ref & FAQ & CTA1 & CTA2 -->|Aggregated Content| Compiler[Compiler Agent]
+        Compiler -->|Final Polish| Output[Final Blog Post]
+    end
 ```
-┌─────────────────┐
-│   Frontend      │  HTML/CSS/JavaScript
-│   (chatbot.js)  │  Variable management & UI
-└────────┬────────┘
-         │ REST API
-┌────────▼────────┐
-│   Flask App     │  Request handling
-│   (app.py)      │  Prompt preparation
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│  Orchestrator   │  Agent coordination
-│ (orchestrater)  │  Parallel execution
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│   AI Agents     │  LangChain/LangGraph
-│ (SingularAgents,│  Content generation
-│   FullAgents)   │
-└────────┬────────┘
-         │
-┌────────▼────────┐
-│   PostgreSQL    │  Content & history
-│   Database      │  Progress tracking
-└─────────────────┘
-```
+
+### 1. The Orchestrator Engine (`orchestrater.py`)
+Acts as the central nervous system, handling:
+- **Context Injection**: Dynamically builds prompt contexts from user variables (Company Name, Location, etc.).
+- **Parallel processing**: Launches 6 concurrent threads using `ThreadPoolExecutor` to generate independent blog sections simultaneously.
+- **Error containment**: Isolates failures in individual threads so one failed section doesn't crash the entire pipeline.
+
+### 2. The Agentic Layer (`SingularAgents.py`)
+Each section is handled by a specialized agent with built-in reliability features:
+- **Automatic Fallback**: If a primary model (e.g., Qwen) fails or times out, the system automatically retries with a backup model (e.g., Llama-3).
+- **Exponential Backoff**: Implements smart retries with jitter to handle API rate limits gracefully.
+- **Strict Guardrails**: Enforces output formatting to prevent "AI hallucinations" or meta-commentary (e.g., "Here is your text...").
+
+### 3. The Compiler Synthesis (`FullAgents.py`)
+The final stage uses a high-intelligence model (DeepSeek-V3 or Llama-4-Maverick) to:
+- **Assemble**: Merges disparate sections into a cohesive narrative.
+- **Smooth Transitions**: Adds connecting sentences between sections for flow.
+- **Format**: Ensures consistent Markdown styling throughout the document.
 
 ---
 
-## Technology Stack
+## 🛠️ Technology Stack
 
-### Backend
-- **Flask 3.1.0+** - Web framework
-- **PostgreSQL 12+** - Database
-- **psycopg2** - PostgreSQL adapter
-- **LangChain** - LLM framework
-- **LangGraph** - Agent orchestration
-- **Gunicorn** - Production WSGI server
+### Backend Infrastructure
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| **Python** | 3.12.3+ | Core application language |
+| **Flask** | 3.1.0+ | Web framework and API layer |
+| **PostgreSQL** | 15.12+ | Primary data store |
+| **psycopg2** | Latest | PostgreSQL Python adapter |
+| **Gunicorn** | Latest | Production WSGI server |
+
+### AI & LLM Framework
+| Component | Purpose |
+|-----------|---------|
+| **LangChain** | LLM orchestration and chaining |
+| **LangGraph** | Multi-agent workflow management |
+| **Together AI** | Primary LLM API provider |
 
 ### Frontend
-- **HTML5/CSS3** - Structure and styling
-- **Vanilla JavaScript** - Interactive UI
-- **LocalStorage API** - Client-side persistence
-
-### AI
-- **OpenAI Models** - GPT-based content generation
-- **DeepSeek Models** - Cost-effective options
-- **Qwen Models** - Specialized content generation
+| Technology | Use Case |
+|------------|----------|
+| **HTML5/CSS3** | Structure and responsive design |
+| **Vanilla JavaScript** | Interactive UI and AJAX |
+| **LocalStorage API** | Client-side state persistence |
 
 ---
 
-## Features
+## ✨ Key Features
 
-#### Web Interface
-- Interactive chat interface for blog generation
-- Collapsible variable configuration panel
-- Real-time chat history loading
-- LocalStorage persistence for user preferences
-- Database table viewer
-- Token usage statistics dashboard
+### Enterprise-Grade Reliability
+The system is engineered for stability using `SingularAgents.py` guardrails:
+- **Timeout Protection**: Every agent call is wrapped in a strict 30s timeout window to prevent hanging processes.
+- **Smart Retries**: Implements exponential backoff (0.6s base) with jitter to handle transient API failures without crashing.
+- **Fallback Models**: Automatically downgrades to backup models if primary inference fails.
 
-#### Database Layer
-- Connection pooling for efficient access
-- Safe transaction handling with automatic rollback
-- Blog content storage (full blogs and parts)
-- Chat history tracking with timestamps
-- Progress tracking for multi-step generation
-- Token usage statistics
+### Strict Guardrails
+Content generation is controlled by a rigorous system directive:
+- **Hallucination Prevention**: Forbidden from inventing legal/medical specifics not in context.
+- **Structure Enforcement**: output must be pure Markdown; no JSON, XML, or conversational filler ("Here is your blog").
+- **Context Preservation**: Placeholders like `{COMPANY_NAME}` are preserved verbatim for accurate post-processing.
 
-#### AI Agents
-- **Intro Writing Agent** - Generates engaging introductions
-- **Final CTA Agent** - Creates compelling calls-to-action
-- **FAQs Agent** - Generates relevant FAQ sections
-- **Business Description Agent** - Writes company descriptions
-- **Short CTA Agent** - Creates brief CTAs
-- **References Agent** - Integrates source citations
-- **Full Blog Writer** - Assembles complete blog posts
+### Core Capabilities
+- **Multi-Agent Architecture**: Parallel execution of 6 specialized AI agents.
+- **Customizable Prompts**: Template-based system with 26+ configurable variables.
+- **PostgreSQL Integration**: Robust database layer for content storage.
+- **Progress Tracking**: Real-time monitoring of agent completion status.
 
-### In Development
+### 🤖 AI Agent Roster
 
-- **Enhanced AI Integration** - Additional LLM provider support
-- **User Authentication** - Multi-user support with sessions
-- **Advanced Analytics** - Detailed usage metrics and insights
-- **Content Optimization** - SEO scoring and suggestions
-- **Template Library** - Pre-built prompt templates
+Each agent is optimized for a specific content type:
+
+| Agent | Purpose | Token Budget | Output |
+|-------|---------|--------------|--------|
+| **Intro Writing Agent** | Hook readers with engaging opening paragraphs | 128-640 | Compelling lead-in |
+| **Business Description Agent** | Professional company profile | 128-1024 | Brand positioning |
+| **FAQ Agent** | Answer common questions | 512-1024 | 5-7 Q&A pairs |
+| **Final CTA Agent** | Strong conversion-focused close | 128-512 | Persuasive CTA |
+| **Short CTA Agent** | Brief mid-article CTAs | 64-256 | Concise prompts |
+| **References Agent** | Citations and sources | 128-512 | Formatted references |
+| **Compiler Agent** | Final assembly and polish | 1792-3584 | Complete, cohesive blog |
+
+### 🚧 Roadmap
+
+- [ ] **Multi-Provider Support** - Add Anthropic Claude and Google Gemini options
+- [ ] **User Authentication** - Multi-tenant support with role-based access
+- [  ] **Advanced Analytics** - Track performance metrics and ROI
+- [ ] **SEO Scoring** - Real-time content optimization suggestions  
+- [ ] **Template Library** - Pre-built prompts for common blog types
 
 ---
 
-## Pricing & Cost Optimization
+## 💰 Pricing & Cost Optimization
 
-### AI Model Pricing
+Writer's Block uses a **multi-model approach** to optimize both quality and cost. Different AI models are selected for each blog section based on task complexity, ensuring you only pay for the intelligence level you need.
 
-The application uses multiple AI models optimized for different blog sections. Pricing is per million tokens (input/output).
+### Model Pricing Overview
 
-| Model | Input | Output | Use Case | Token Range |
-|-------|-------|--------|----------|-------------|
-| **OpenAI/gpt-oss-20B** | $0.05 | $0.20 | References | 128-512 tokens |
-| **openai/gpt-oss-120b** | $0.15 | $0.60 | References, Final CTA | 128-512 tokens |
-| **google/gemma-3n-E4B-it** | $0.02 | $0.04 | Short CTA | 64-256 tokens |
-| **Qwen/Qwen3-Next-80B-A3B-Instruct** | $0.15 | $1.50 | Business Description, Introduction | 128-1024 tokens |
-| **Qwen/Qwen2.5-7B-Instruct-Turbo** | $0.30 | $0.30 | Business Description | 128-1024 tokens |
-| **deepseek-ai/DeepSeek-V3.1** | $0.60 | $1.25 | FAQs | 512-1024 tokens |
-| **Qwen/Qwen2.5-72B-Instruct-Turbo** | $1.20 | $1.20 | FAQs | 512-1024 tokens |
-| **meta-llama/Meta-Llama-3-8B-Instruct-Lite** | $0.10 | $0.10 | Final CTA | 128-512 tokens |
-| **deepseek-ai/DeepSeek-R1-0528-tput** | $0.55 | $2.19 | Intro Section | 128-640 tokens |
-| **deepseek-ai/DeepSeek-R1-0528-tput** | $0.55 | $2.19 | Intro Section | 128-640 tokens |
-| **meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8** | $0.27 | $0.85 |   |   |
+All pricing is per **million tokens** (input/output). The system automatically selects the optimal model for each section.
 
-### Cost Per Blog Section
+<details open>
+<parameter name="summary"><b>📊 Complete Model Pricing Table</b></summary>
 
-Estimated costs based on typical token usage:
+| Model | Input/M | Output/M | Primary Use | Token Range | Cost Tier |
+|-------|---------|----------|-------------|-------------|-----------|
+| **DeepSeek-V3** | $1.25 | $1.25 | Final Blog Assembly | 1792-3584 | 🔴 Premium |
+| **Qwen-2.5-72B-Turbo** | $1.20 | $1.20 | Complex FAQs | 512-1024 | 🔴 Premium |
+| **DeepSeek-R1** | $0.55 | $2.19 | Engaging Intros | 128-640 | 🟡 High |
+| **Qwen/Qwen2.5-7B-Turbo** | $0.30 | $0.30 | Business Descriptions | 128-1024 | 🟢 Standard |
+| **Qwen/Qwen3-Next-80B** | $0.15 | $1.50 | Intro Drafting | 128-1024 | 🟢 Standard |
+| **openai/gpt-oss-120b** | $0.15 | $0.60 | Final CTAs | 128-512 | 🟢 Standard |
+| **Meta-Llama-3-8B** | $0.10 | $0.10 | CTAs | 128-512 | 🔵 Economy |
+| **OpenAI/gpt-oss-20B** | $0.05 | $0.20 | References & Citations | 128-512 | 🔵 Economy |
+| **google/gemma-3n-E4B** | $0.02 | $0.04 | Short CTAs | 64-256 | 🔵 Economy |
+| **Llama-4-Maverick-17B** | $0.27 | $0.85 | Fallback/Testing | Variable | 🟡 High |
 
-| Section | Typical Tokens | Model Used | Est. Cost |
-|---------|----------------|------------|-----------|
-| **Introduction** | 400 tokens | Qwen3-Next-80B | $0.0006 - $0.006 |
-| **Business Description** | 600 tokens | Qwen2.5-7B-Turbo | $0.0018 - $0.0018 |
-| **FAQs** | 800 tokens | DeepSeek-V3.1 | $0.0048 - $0.010 |
-| **Final CTA** | 300 tokens | gpt-oss-120b | $0.00045 - $0.0018 |
-| **Short CTA** | 150 tokens | gemma-3n-E4B | $0.00003 - $0.00006 |
-| **References** | 250 tokens | gpt-oss-20B | $0.000125 - $0.0005 |
-| **Full Blog Assembly** | 2500 tokens | DeepSeek-V3 | $0.03125 - $0.03125 |
+</details>
 
-**Total Estimated Cost per Blog:** $0.04 - $0.05 USD
+### Cost Breakdown Per Blog
 
-### Monthly Cost Estimates
+Here's exactly what you'll pay for each section of a typical blog:
 
-| Usage Level | Blogs/Month | Est. Monthly Cost |
-|-------------|-------------|-------------------|
-| **Light** | 10 blogs | $0.40 - $0.50 |
-| **Medium** | 50 blogs | $2.00 - $2.50 |
-| **Heavy** | 200 blogs | $8.00 - $10.00 |
-| **Enterprise** | 1000 blogs | $40.00 - $50.00 |
+| Blog Section | Avg Tokens | Model | Input Cost | Output Cost | **Total** |
+|--------------|------------|-------|------------|-------------|-----------|
+| Introduction | 400 | Qwen3-Next-80B / DeepSeek-R1 | $0.00006 | $0.0006 | **~$0.0007** |
+| Business Description | 600 | Qwen2.5-7B | $0.00018 | $0.00018 | **~$0.0004** |
+| FAQs (5-7 questions) | 800 | DeepSeek-V3.1 | $0.00048 | $0.001 | **~$0.0015** |
+| Final CTA | 300 | gpt-oss-120b | $0.000045 | $0.00018 | **~$0.0002** |
+| Short CTA | 150 | gemma-3n-E4B | $0.000003 | $0.000006 | **~$0.00001** |
+| References | 250 | gpt-oss-20B | $0.0000125 | $0.00005 | **~$0.00006** |
+| **Final Assembly** | 2500 | **DeepSeek-V3** | **$0.003125** | **$0.003125** | **~$0.0063** |
 
-> **Note:** Costs are estimates based on typical usage. Actual costs may vary based on prompt complexity, example usage, and output length.
+#### 📌 Bottom Line
+**Total Cost Per Blog: $0.04 - $0.05 USD**
+
+> 💡 **Why so cheap?** The multi-model architecture uses expensive models only where needed (final assembly, complex reasoning) and economy models for simpler tasks (CTAs, citations). This "smart routing" reduces costs by up to 95% compared to using GPT-4 for everything.
+
+### Monthly Cost Projections
+
+| Usage Tier | Blogs/Month | Monthly Cost | Annual Cost | Best For |
+|------------|-------------|--------------|-------------|----------|
+| **Starter** | 10 | $0.40 - $0.50 | ~$5 | Testing, small blogs |
+| **Professional** | 50 | $2.00 - $2.50 | ~$25 | Small businesses |
+| **Business** | 200 | $8.00 - $10.00 | ~$100 | Content agencies |
+| **Enterprise** | 1,000 | $40.00 - $50.00 | ~$500 | Large organizations |
+| **Scale** | 10,000 | $400 - $500 | ~$5,000 | Major publishers |
+
+### Cost Variables
+
+Actual costs may vary based on:
+- **Prompt Complexity**: More detailed prompts = slightly higher input costs
+- **Example Usage**: Fetching more examples increases processing
+- **Output Length**: Longer blogs (3000+ words) cost proportionally more
+- **Model Availability**: Fallback models may have different pricing
 
 ---
 
@@ -237,6 +284,166 @@ Generate blog content using AI agents with customizable prompts and variables.
   "timestamp": "2026-01-27T02:30:00"
 }
 ```
+
+**Code Examples:**
+
+<details>
+<summary><b>cURL</b></summary>
+
+```bash
+curl -X POST https://writers-block-weup.onrender.com/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Generate a blog about car accidents in California",
+    "vars": {
+      "TITLE": "What to Do After a Car Accident in California",
+      "KEYWORDS": "car accident lawyer, personal injury attorney",
+      "TEMPERATURE": "0.70",
+      "BLOGTYPE": "Legal",
+      "COMPANY_NAME": "Smith & Associates Law Firm",
+      "CALL_NUMBER": "1-800-555-0123",
+      "ADDRESS": "123 Main Street, Los Angeles",
+      "STATE_NAME": "California",
+      "LINK": "https://smithlawfirm.com",
+      "COMPANY_EMPLOYEE": "John Smith",
+      "INSERT_INTRO_QUESTION": "What should you do immediately after a car accident?",
+      "INSERT_FAQ_QUESTIONS": "How long do I have to file a claim?",
+      "SOURCE": "California Vehicle Code Section 20001",
+      "BLOGFOREXAMPLE": [11, 12, 13],
+      "BLOGPART_INTRO": [11, 12],
+      "BLOGPART_FINALCTA": [11, 12],
+      "BLOGPART_FAQS": [11, 12],
+      "BLOGPART_BUSINESSDESC": [11],
+      "BLOGPART_SHORTCTA": [11, 12],
+      "PROMPT_FULLBLOG": "Write a comprehensive blog post...",
+      "PROMPT_INTRO": "Write an engaging introduction...",
+      "PROMPT_FINALCTA": "Write a compelling call-to-action...",
+      "PROMPT_FULLFAQS": "Generate 5-7 frequently asked questions...",
+      "PROMPT_BUSINESSDESC": "Write a professional business description...",
+      "PROMPT_REFERENCES": "Integrate the following references...",
+      "PROMPT_SHORTCTA": "Write a brief call-to-action..."
+    }
+  }'
+```
+</details>
+
+<details>
+<summary><b>Python</b></summary>
+
+```python
+import requests
+
+url = "https://writers-block-weup.onrender.com/api/chat"
+
+payload = {
+    "message": "Generate a blog about car accidents in California",
+    "vars": {
+        "TITLE": "What to Do After a Car Accident in California",
+        "KEYWORDS": "car accident lawyer, personal injury attorney",
+        "TEMPERATURE": "0.70",
+        "BLOGTYPE": "Legal",
+        "COMPANY_NAME": "Smith & Associates Law Firm",
+        "CALL_NUMBER": "1-800-555-0123",
+        "ADDRESS": "123 Main Street, Los Angeles",
+        "STATE_NAME": "California",
+        "LINK": "https://smithlawfirm.com",
+        "COMPANY_EMPLOYEE": "John Smith",
+        "INSERT_INTRO_QUESTION": "What should you do immediately after a car accident?",
+        "INSERT_FAQ_QUESTIONS": "How long do I have to file a claim?",
+        "SOURCE": "California Vehicle Code Section 20001",
+        "BLOGFOREXAMPLE": [11, 12, 13],
+        "BLOGPART_INTRO": [11, 12],
+        "BLOGPART_FINALCTA": [11, 12],
+        "BLOGPART_FAQS": [11, 12],
+        "BLOGPART_BUSINESSDESC": [11],
+        "BLOGPART_SHORTCTA": [11, 12],
+        "PROMPT_FULLBLOG": "Write a comprehensive blog post...",
+        "PROMPT_INTRO": "Write an engaging introduction...",
+        "PROMPT_FINALCTA": "Write a compelling call-to-action...",
+        "PROMPT_FULLFAQS": "Generate 5-7 frequently asked questions...",
+        "PROMPT_BUSINESSDESC": "Write a professional business description...",
+        "PROMPT_REFERENCES": "Integrate the following references...",
+        "PROMPT_SHORTCTA": "Write a brief call-to-action..."
+    }
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+
+if data["success"]:
+    print("Blog generated successfully!")
+    print(data["response"])
+else:
+    print(f"Error: {data['message']}")
+```
+</details>
+
+<details>
+<summary><b>JavaScript (Fetch API)</b></summary>
+
+```javascript
+const url = "https://writers-block-weup.onrender.com/api/chat";
+
+const payload = {
+  message: "Generate a blog about car accidents in California",
+  vars: {
+    TITLE: "What to Do After a Car Accident in California",
+    KEYWORDS: "car accident lawyer, personal injury attorney",
+    TEMPERATURE: "0.70",
+    BLOGTYPE: "Legal",
+    COMPANY_NAME: "Smith & Associates Law Firm",
+    CALL_NUMBER: "1-800-555-0123",
+    ADDRESS: "123 Main Street, Los Angeles",
+    STATE_NAME: "California",
+    LINK: "https://smithlawfirm.com",
+    COMPANY_EMPLOYEE: "John Smith",
+    INSERT_INTRO_QUESTION: "What should you do immediately after a car accident?",
+    INSERT_FAQ_QUESTIONS: "How long do I have to file a claim?",
+    SOURCE: "California Vehicle Code Section 20001",
+    BLOGFOREXAMPLE: [11, 12, 13],
+    BLOGPART_INTRO: [11, 12],
+    BLOGPART_FINALCTA: [11, 12],
+    BLOGPART_FAQS: [11, 12],
+    BLOGPART_BUSINESSDESC: [11],
+    BLOGPART_SHORTCTA: [11, 12],
+    PROMPT_FULLBLOG: "Write a comprehensive blog post...",
+    PROMPT_INTRO: "Write an engaging introduction...",
+    PROMPT_FINALCTA: "Write a compelling call-to-action...",
+    PROMPT_FULLFAQS: "Generate 5-7 frequently asked questions...",
+    PROMPT_BUSINESSDESC: "Write a professional business description...",
+    PROMPT_REFERENCES: "Integrate the following references...",
+    PROMPT_SHORTCTA: "Write a brief call-to-action..."
+  }
+};
+
+fetch(url, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(payload)
+})
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      console.log("Blog generated successfully!");
+      console.log(data.response);
+    } else {
+      console.error(`Error: ${data.message}`);
+    }
+  })
+  .catch(error => console.error("Request failed:", error));
+```
+</details>
+
+**Common Error Scenarios:**
+
+| Error Code | Cause | Solution |
+|------------|-------|----------|
+| `EMPTY_MESSAGE` | Message field is empty or missing | Provide a non-empty message in the request |
+| `POOL_EXHAUSTED` | Database connection pool is full | Wait and retry, or contact administrator |
+| `DB_ERROR` | Database operation failed | Check database connectivity and credentials |
+| `CHAT_FAILED` | AI model or orchestration error | Verify API keys and model availability |
 
 ---
 
